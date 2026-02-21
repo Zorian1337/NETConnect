@@ -58,17 +58,24 @@ public struct PacketHeader
         return buffer.Slice(0, HeaderSize); // Returns the amount of bytes that we written to buffer
     }
 
-    // ReadFrom - Converts binary to 
-    public static PacketHeader ReadFrom(Span<byte> buffer, out byte[] Packets)
+
+    /// <summary>
+    /// Converts our Binary Span to Memory to lay out our packet/data
+    /// </summary>
+    /// <param name="buffer"></param>
+    /// <param name="Packets"></param>
+    /// <returns></returns>
+    public static bool ReadFrom(ReadOnlyMemory<byte> buffer, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData)
     {
-        Packets = Array.Empty<byte>();
+        Headers = Array.Empty<PacketHeader>(); // Probably need to return this as something memory effient later
+        PacketData = Array.Empty<ReadOnlyMemory<byte>>();
 
         // Handles more than 1 packet 
         if (buffer.Length > HeaderSize)
         {
-            ReadOnlySpan<byte> Header = buffer.Slice(0, HeaderSize);
+            ReadOnlyMemory<byte> Header = buffer.Slice(0, HeaderSize);
 
-            int DataLength = BinaryPrimitives.ReadInt32LittleEndian(Header);
+            int DataLength = BinaryPrimitives.ReadInt32LittleEndian(Header.Span);
 
 
             if((HeaderSize + DataLength) == buffer.Length) // Single packet
@@ -76,27 +83,41 @@ public struct PacketHeader
                 // Only grab from Header so that we can guarentee that we are getting the right packet
                 PacketHeader Packet = new PacketHeader();
                 Packet.ByteLength = DataLength;
-                Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(4));
-                Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(6));
+                Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(4).Span);
+                Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(6).Span);
 
-                return Packet;
+                Headers = new PacketHeader[] { Packet };
+
+                // Return Header and packet data
+                PacketData = new ReadOnlyMemory<byte>[] { buffer.Slice(HeaderSize) };
+
+
+                return true;
+                //return Packet;
             }
             else if ((HeaderSize + DataLength) > buffer.Length) // Potentially more than 1 packet
             {
-                return default;
+
+                // We need to add support for this later
+                return false;
+                //return default;
             }
 
         }
         else if (buffer.Length == HeaderSize) // This should probably only run when data is Empty
         {
             PacketHeader Packet = new PacketHeader();
-            Packet.ByteLength = BinaryPrimitives.ReadInt32LittleEndian(buffer);
-            Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4));
-            Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(6));
+            Packet.ByteLength = BinaryPrimitives.ReadInt32LittleEndian(buffer.Span);
+            Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4).Span);
+            Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(6).Span);
 
-            return Packet;
+            // Return Header, packet data is probably null
+            Headers = new PacketHeader[] { Packet };
+
+            return true;
+            //return Packet;
         }
 
-        return default;
+        return false;
     }
 }

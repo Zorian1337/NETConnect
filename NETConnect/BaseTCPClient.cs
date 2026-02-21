@@ -76,7 +76,7 @@ public class BaseTCPClient
         {
             Thread.Sleep(100);
 
-
+            #region Old
             // Check for timeout every so often
 
             // Then detect any incoming messages
@@ -90,20 +90,26 @@ public class BaseTCPClient
 
             //} // Reuse this later doing testing with our packet header 
 
-            if(SocketClient.Available > 4)
+            //if (SocketClient.Available > 4)
+            //{
+            //    // OnAvailable Only read the data that we need to
+            //    int ReceivedLength = SocketClient.Receive(Buffer);//.Receive(Buffer, 0, 4);
+            //    Span<byte> DATA = Buffer.Slice(0, ReceivedLength);
+
+            //    // Read the first 4 bytes 
+            //    PacketHeader Header = PacketHeader.ReadFrom(DATA, out _);
+
+            //    Console.WriteLine($"ActionType: {Header.PacketAction} - PacketLength: {Header.ByteLength}");
+
+
+            //    //OnDataReceived?.Invoke(DATA);
+            //}
+            #endregion
+
+            ReadOnlyMemory<byte> Packet = SocketClient.Receive(ref NetworkBuffer.ByteBuffer, 4);
+            if (SocketClient.ReadForPacketV2(Packet, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData))
             {
-                // OnAvailable Only read the data that we need to
-                int ReceivedLength = SocketClient.Receive(Buffer);//.Receive(Buffer, 0, 4);
-                Span<byte> DATA = Buffer.Slice(0, ReceivedLength);
-
-                // Read the first 4 bytes 
-                PacketHeader Header = PacketHeader.ReadFrom(DATA, out _);
-
-                Console.WriteLine($"ActionType: {Header.PacketAction} - PacketLength: {Header.ByteLength}");
-
-
-
-                //OnDataReceived?.Invoke(DATA);
+                Console.WriteLine("SERVER => Packet has been found!");
             }
         }
     }
