@@ -10,9 +10,20 @@ namespace NETConnect.Shared.Packet;
 public class PacketActions
 {
 
-    // Change to enum later
-    public static void HandleAction(string Action)
-    {
+    // Figure out way to invoke each classes events so they can be handled at any time
+    //public static void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
+    //{
+    //    switch(Header.PacketAction)
+    //    {
+    //        case PacketActionType.Ping:
+    //            Helper.SendUTF8Packet("<PONG>", PacketActionType.Pong);
 
-    }
+    //            break;
+
+    //        case PacketActionType.Pong:
+    //            break;
+
+    //        case PacketActionType.Data: break;
+    //    }
+    //}
 }

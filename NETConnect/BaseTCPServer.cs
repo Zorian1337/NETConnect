@@ -1,6 +1,7 @@
 ﻿using NETConnect.Interfaces;
 using NETConnect.MyExtensions;
 using NETConnect.Shared;
+using NETConnect.Shared.Packet;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,7 +27,7 @@ public class BaseTCPServer : BaseServerProperties, IServer
 
     public event Action<Socket> OnClientConnected;
     public event Action<Socket> OnClientDisconnected;
-    public event Action<ServerClientHandle, Span<byte>> OnDataReceived;
+    public event Action<ServerClientHandle, ReadOnlySpan<byte>> OnDataReceived;
     
 
     public List<ServerClientHandle> Clients { get; set; } = new List<ServerClientHandle>();
@@ -91,11 +92,15 @@ public class BaseTCPServer : BaseServerProperties, IServer
         NetworkBuffer Buffers = new NetworkBuffer();
 
         ServerClientHandle ClientHandle = new ServerClientHandle(client, Buffers, DateTime.UtcNow);
-        client.SendUTF8("Welcome Client!, You seem to be new here!", ref ClientHandle.Buffers.ByteBuffer);
+        //client.SendUTF8("Welcome Client!, You seem to be new here!", ref ClientHandle.Buffers.ByteBuffer);
 
         Clients.Add(ClientHandle);
 
         Span<byte> Buffer = new Span<byte>(Buffers.ByteBuffer);
+
+
+        var Client = client;
+        PacketHelper Packer = new PacketHelper(ref Client, ref Buffers, ref ClientHandle);
 
 
         // Handles client while token is still valid and the client hasnt timed out
@@ -112,25 +117,44 @@ public class BaseTCPServer : BaseServerProperties, IServer
                 return; // Probably requires more than this later but for now it works
             } // I care about reading data first this structure will probably change later anyway
 
-            if (client.Available > 0)
+
+
+            ReadOnlyMemory<byte> Packet = client.Receive(ref Buffers.ByteBuffer, ref Buffer, 4);
+            if (client.ReadForPacketV2(Packet, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData))
             {
-                client.Receive(Buffer);
-                Span<byte> DATA = Buffer.Slice(0, Buffer.Length);
-                OnDataReceived?.Invoke(ClientHandle, DATA);
+                //Console.WriteLine("SERVER => Packet has been found!");
+                // Group packets that are split (when more than one packet at once is supported)
 
+                if (Headers.Length > 0)
+                {
+                    // Only one header available so just grab first
+                    PacketHeader Header = Headers.FirstOrDefault();
+                    ReadOnlyMemory<byte> Data = PacketData.FirstOrDefault();
+
+                    // Handle Packet per Action
+                    HandleAction(Header, Data, Packer);
+                }
             }
-
-
-            //client.ReadAvailableData(ref Buffer);
-
-            
-            //OnDataReceived?.Invoke(ClientHandle, DATA);
         }
     }
 
-    public void HandleDataReceived(ServerClientHandle Client, Span<byte> Data)
+    public void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
+    {
+        switch (Header.PacketAction)
+        {
+            case PacketActionType.Pong:
+                Helper.SendUTF8Packet("Pong Received, Handling Accordingly", PacketActionType.Data);
+                OnDataReceived.Invoke(Helper.ClientHandle, Data.Span);
+                break;
+            case PacketActionType.Data:
+                OnDataReceived.Invoke(Helper.ClientHandle, Data.Span);
+                break;
+        }
+    }
+
+    public void HandleDataReceived(ServerClientHandle Client, ReadOnlySpan<byte> Data)
     {
         // Print the message that was received from the client
-        Console.WriteLine($"Client => \"{Data.UTF8ByteToUTF8String(Client.Buffers.CharBuffer)}\"");
+        Console.WriteLine($"Client => \"{Data.ToUTF8String(Client.Buffers.CharBuffer)}\""); //Client.Buffers.CharBuffer
     } 
 }

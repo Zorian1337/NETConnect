@@ -13,6 +13,6 @@ namespace NETConnect.Interfaces
         // All references to sockets need to be changed into a reference to the client itself 
         public event Action<Socket> OnClientConnected;
         public event Action<Socket> OnClientDisconnected;
-        public event Action<ServerClientHandle, Span<byte>> OnDataReceived; 
+        public event Action<ServerClientHandle, ReadOnlySpan<byte>> OnDataReceived; 
     }
 }

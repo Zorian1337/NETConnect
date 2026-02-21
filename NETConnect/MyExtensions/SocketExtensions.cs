@@ -7,25 +7,70 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+//using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace NETConnect.MyExtensions
 {
     public static class SocketExtensions
     {
-        public static void Send(this Socket Connection, PacketActionType ActionType, byte[] Data, ref byte[] Buffer)
+        #region PacketHelper stuff...
+
+
+        public static int Send(this Socket Connection, ref byte[] Buffer, ReadOnlySpan<byte> Data, PacketActionType ActionType)
         {
-            // Prevent data array from being null but allow it to be Zero 
-            if (Data is null) return;
+            int bytesSent = -1;
 
             PacketHeader Header = new PacketHeader(Data.Length, ActionType, PacketEncodingType.BINARY);
-
             ReadOnlySpan<byte> Packet = Header.WriteTo(Buffer);
-            Connection.Send(Packet);
+
+
+            if (Data.Length == 0) bytesSent = Connection.Send(Packet);
+            else
+            {
+                // Uses buffer to create a span big enough to hold both packet header and packet data
+                Span<byte> WriterSpan = new Span<byte>(Buffer);
+
+                // Fills span with our packet data
+                Packet.CopyTo(WriterSpan);
+                Data.CopyTo(WriterSpan.Slice(Packet.Length, Data.Length));
+
+                bytesSent = Connection.Send(WriterSpan.Slice(0, Packet.Length + Data.Length)); // Only send parts of the span that we just populated
+            }
+
+
+            return bytesSent;
         }
 
+        public static int Send(this Socket Connection, ref byte[] Buffer, byte[] Data, PacketActionType ActionType)
+        {
+            int bytesSent = -1;
 
-        //public static int Receive(this Socket Connection, ref byte[] Buffer, int Offset, int Size, SocketFlags socketFlags = SocketFlags.None) => Connection.Receive(Buffer, Offset, Size, socketFlags);
+            // Prevent data array from being null but allow it to be Zero 
+            if (Data is null) return bytesSent;
+
+            PacketHeader Header = new PacketHeader(Data.Length, ActionType, PacketEncodingType.BINARY);
+            ReadOnlySpan<byte> Packet = Header.WriteTo(Buffer);
+
+
+            if (Data.Length == 0) bytesSent = Connection.Send(Packet);
+            else
+            {
+                ReadOnlySpan<byte> DataSpan = Data.AsSpan();
+
+                // Uses buffer to create a span big enough to hold both packet header and packet data
+                Span<byte> WriterSpan = new Span<byte>(Buffer);
+
+                // Fills span with our packet data
+                Packet.CopyTo(WriterSpan);
+                DataSpan.CopyTo(WriterSpan.Slice(Packet.Length, DataSpan.Length));
+
+                bytesSent = Connection.Send(WriterSpan.Slice(0, Packet.Length + DataSpan.Length)); // Only send parts of the span that we just populated
+            }
+
+
+            return bytesSent;
+        }
+
 
         /// <summary>
         /// Gets network data, based on existing buffer size, using Spans and returns as ReadOnlyMemory
@@ -34,7 +79,7 @@ namespace NETConnect.MyExtensions
         /// <param name="Buffer"></param>
         /// <param name="WaitTillSizeAvailable"></param>
         /// <returns></returns>
-        public static ReadOnlyMemory<byte> Receive(this Socket Connection, ref byte[] Buffer, int WaitTillSizeAvailable)
+        public static ReadOnlyMemory<byte> Receive(this Socket Connection, ref byte[] Buffer, ref Span<byte> SpanBuffer, int WaitTillSizeAvailable)
         {
 
             // Make sure connect is valid before any errors - needs implemented
@@ -42,7 +87,7 @@ namespace NETConnect.MyExtensions
             {
 
                 // Use span to capture our data, Then use the base bytes to write to memory
-                Span<byte> SpanBuffer = new Span<byte>(Buffer);
+                //Span<byte> SpanBuffer = new Span<byte>(Buffer); - removed due to being reallocated every time
 
                 // Attempt to retrieve our custom packet from this connection
                 int ReceivedLength = Connection.Receive(SpanBuffer);
@@ -54,50 +99,13 @@ namespace NETConnect.MyExtensions
         }
 
 
-        //public static bool ReadForPacketV1(this Socket Connection, Span<byte> Buffer, out PacketHeader Header, out ReadOnlySpan<byte> Data)
-        //{
-        //    Header = default;
-        //    Data = Span<byte>.Empty;
-
-        //    // Make sure connect is valid before any errors - needs implemented
-
-        //    if (Connection.Available > 4)
-        //    {
-        //        // Attempt to retrieve our custom packet from this connection
-        //        int ReceivedLength = Connection.Receive(Buffer);
-
-
-        //        ReadOnlySpan<byte> DATA = Buffer.Slice(0, ReceivedLength);
-
-        //        // Read the first 4 bytes 
-        //        Header = PacketHeader.ReadFrom(DATA, out _);
-
-        //        Console.WriteLine($"ActionType: {Header.PacketAction} - PacketLength: {Header.ByteLength}");
-        //        return true;
-        //    }
-
-        //    return false;
-        //}
-
         public static bool ReadForPacketV2(this Socket Connection, ReadOnlyMemory<byte> DATA, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData)
         {
+            // Reads the data and checks if it contains packet headers
             return PacketHeader.ReadFrom(DATA, out Headers, out PacketData);
         }
 
-        public static void SendUTF8(this Socket Connection, string UTF8Message, ref byte[] Buffer)
-        {
-            ReadOnlySpan<byte> Data = UTF8Message.UTF8StringToUTF8Byte(Buffer);
-            Connection.Send(Data);
-        }
+        #endregion
 
-
-        public static void ReadAvailableData(this Socket Connection, ref Span<byte> Buffer)
-        {
-            if (Connection is null) return;
-
-
-            //// Check for data from client if hasnt already timed out
-            if (Connection.Available > 0) Connection.Receive(Buffer); // This will be changed later 
-        }
     }
 }

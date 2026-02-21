@@ -23,7 +23,7 @@ namespace NETConnectAPP
                 if (Client.TryConnect("127.0.0.1", 5000))
                 {
                     Console.WriteLine("(NETApp)");
-                    Client.SocketClient.Send("I have connected this is a message test!".UTF8StringToUTF8Byte(Client.NetworkBuffer.ByteBuffer));
+                    //Client.SocketClient.Send("I have connected this is a message test!".UTF8StringToUTF8Byte(Client.NetworkBuffer.ByteBuffer));
                 }
             });
 

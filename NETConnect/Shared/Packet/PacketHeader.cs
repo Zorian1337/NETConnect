@@ -11,9 +11,9 @@ namespace NETConnect.Shared.Packet;
 
 public enum PacketActionType : ushort // ushort is 2 bytes
 {
-    Ping,
+    Ping, Pong,
     SYN, SYNAck, ACK,
-
+    Data
 }
 
 public enum PacketEncodingType : ushort
@@ -90,7 +90,6 @@ public struct PacketHeader
 
                 // Return Header and packet data
                 PacketData = new ReadOnlyMemory<byte>[] { buffer.Slice(HeaderSize) };
-
 
                 return true;
                 //return Packet;

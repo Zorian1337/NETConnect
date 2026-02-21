@@ -28,7 +28,7 @@ public class BaseTCPClient
 
     public event Action OnConnected;
     public event Action OnDisconnected;
-    public event Action<Span<byte>> OnDataReceived;
+    public event Action<ReadOnlySpan<byte>> OnDataReceived;
 
 
     public bool TryConnect(string IP, int Port)
@@ -70,54 +70,53 @@ public class BaseTCPClient
         Console.WriteLine("ClientAPP connected to server");
 
         Span<byte> Buffer = new Span<byte>(NetworkBuffer.ByteBuffer);
-        SocketClient.SendUTF8("Hello Server!, I am new here", ref NetworkBuffer.ByteBuffer);
+
+        var Client = SocketClient;
+        var Buffers = NetworkBuffer;
+        PacketHelper Packer = new PacketHelper(ref Client, ref Buffers);
+
+        Packer.SendUTF8Packet("Hello Server!, I am new here");
 
         while (!Token.IsCancellationRequested)
         {
             Thread.Sleep(100);
 
-            #region Old
-            // Check for timeout every so often
-
-            // Then detect any incoming messages
-            //if (SocketClient.Available > 0)
-            //{
-            //    // OnAvailable Only read the data that we need to
-            //    int ReceivedLength = SocketClient.Receive(Buffer);
-            //    Span<byte> DATA = Buffer.Slice(0, ReceivedLength);
-
-            //    OnDataReceived?.Invoke(DATA);
-
-            //} // Reuse this later doing testing with our packet header 
-
-            //if (SocketClient.Available > 4)
-            //{
-            //    // OnAvailable Only read the data that we need to
-            //    int ReceivedLength = SocketClient.Receive(Buffer);//.Receive(Buffer, 0, 4);
-            //    Span<byte> DATA = Buffer.Slice(0, ReceivedLength);
-
-            //    // Read the first 4 bytes 
-            //    PacketHeader Header = PacketHeader.ReadFrom(DATA, out _);
-
-            //    Console.WriteLine($"ActionType: {Header.PacketAction} - PacketLength: {Header.ByteLength}");
-
-
-            //    //OnDataReceived?.Invoke(DATA);
-            //}
-            #endregion
-
-            ReadOnlyMemory<byte> Packet = SocketClient.Receive(ref NetworkBuffer.ByteBuffer, 4);
+            ReadOnlyMemory<byte> Packet = SocketClient.Receive(ref NetworkBuffer.ByteBuffer, ref Buffer, 4);
             if (SocketClient.ReadForPacketV2(Packet, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData))
             {
-                Console.WriteLine("SERVER => Packet has been found!");
-            }
+                //Console.WriteLine("SERVER => Packet has been found!");
+                // Group packets that are split (when more than one packet at once is supported)
+
+                if(Headers.Length > 0) 
+                {
+                    // Only one header available so just grab first
+                    PacketHeader Header = Headers.FirstOrDefault();
+                    ReadOnlyMemory<byte> Data = PacketData.FirstOrDefault();
+
+                    // Handle Packet per Action
+                    HandleAction(Header, Data, Packer);
+                }
+            }        }
+    }
+
+    public  void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
+    {
+        switch (Header.PacketAction)
+        {
+            case PacketActionType.Ping: // Server sends client ping, client sends back pong
+                Helper.SendUTF8Packet("<PONG>", PacketActionType.Pong);
+                OnDataReceived.Invoke(Data.Span);
+                break;
+
+            case PacketActionType.Data:
+                OnDataReceived.Invoke(Data.Span);
+                break;
         }
     }
 
-
-    public void HandleOnDataReceived(Span<byte> Data)
+    public void HandleOnDataReceived(ReadOnlySpan<byte> Data)
     {
         // Print the message that was received from the client
-        Console.WriteLine($"Server => \"{Data.UTF8ByteToUTF8String(NetworkBuffer.CharBuffer)}\"");
+        Console.WriteLine($"Server => \"{Data.ToUTF8String(NetworkBuffer.CharBuffer)}\""); 
     }
 }

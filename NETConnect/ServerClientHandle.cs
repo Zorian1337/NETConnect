@@ -5,7 +5,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+
+
+using NETConnect.Shared.Packet;
 
 namespace NETConnect;
 
@@ -41,7 +45,14 @@ public class ServerClientHandle
             {
                 // Attempt to send ping
                 //Connection.SendUTF8("<PING>", ref Buffers.ByteBuffer);// changing text later but we at least need to send the ping
-                Connection.Send(Shared.Packet.PacketActionType.Ping, Array.Empty<byte>(), ref Buffers.ByteBuffer);
+
+                var obj = new
+                {
+                    Time = DateTime.Now
+                };
+
+                string json = JsonSerializer.Serialize(obj);
+                Connection.Send(ref Buffers.ByteBuffer, json.ToUTF8Byte(Buffers.ByteBuffer), PacketActionType.Ping);
 
 
                 // Mark ping sucessful
