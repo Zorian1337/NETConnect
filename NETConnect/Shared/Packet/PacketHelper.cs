@@ -33,7 +33,8 @@ public class PacketHelper
 
     public void SendUTF8Packet(string UTF8Data, PacketActionType Type = PacketActionType.Data)
     {
-        ReadOnlySpan<byte> Data = UTF8Data.ToUTF8Byte(Buffers.UTF8Bufer); //Buffers.ByteBuffer
-        Connection.Send(ref Buffers.ByteBuffer, Data, Type);
+        //Console.WriteLine("sending utf8 packet");
+        ReadOnlySpan<byte> Data = UTF8Data.ToUTF8Byte(Buffers.ReadUTF8Buffer); ////Buffers.ByteBuffer
+        Connection.Send(ref Buffers.WriteBuffer, Data, Type);
     }
 }

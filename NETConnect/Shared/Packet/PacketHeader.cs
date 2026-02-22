@@ -73,13 +73,16 @@ public struct PacketHeader
         // Handles more than 1 packet 
         if (buffer.Length > HeaderSize)
         {
+            
+
             ReadOnlyMemory<byte> Header = buffer.Slice(0, HeaderSize);
 
             int DataLength = BinaryPrimitives.ReadInt32LittleEndian(Header.Span);
-
+            
 
             if((HeaderSize + DataLength) == buffer.Length) // Single packet
             {
+                //Console.WriteLine("single packet");
                 // Only grab from Header so that we can guarentee that we are getting the right packet
                 PacketHeader Packet = new PacketHeader();
                 Packet.ByteLength = DataLength;
@@ -96,7 +99,7 @@ public struct PacketHeader
             }
             else if ((HeaderSize + DataLength) > buffer.Length) // Potentially more than 1 packet
             {
-
+                //Console.WriteLine($"more than 1 packet");
                 // We need to add support for this later
                 return false;
                 //return default;
@@ -105,6 +108,7 @@ public struct PacketHeader
         }
         else if (buffer.Length == HeaderSize) // This should probably only run when data is Empty
         {
+            //Console.WriteLine("single packet");
             PacketHeader Packet = new PacketHeader();
             Packet.ByteLength = BinaryPrimitives.ReadInt32LittleEndian(buffer.Span);
             Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4).Span);
