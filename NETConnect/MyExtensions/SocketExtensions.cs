@@ -13,9 +13,14 @@ namespace NETConnect.MyExtensions
 {
     public static class SocketExtensions
     {
+        public static bool IsGracefulShutdown(this Socket socket)
+        {
+            if (socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0) return true;
+            else return false;
+        }
+
+
         #region PacketHelper stuff...
-
-
         public static int Send(this Socket Connection, ref byte[] Buffer, ReadOnlySpan<byte> Data, PacketActionType ActionType)
         {
             int bytesSent = -1;
@@ -79,15 +84,18 @@ namespace NETConnect.MyExtensions
         /// <param name="Buffer"></param>
         /// <param name="WaitTillSizeAvailable"></param>
         /// <returns></returns>
-        public static ReadOnlyMemory<byte> Receive(this Socket Connection, ref byte[] Buffer, ref Span<byte> SpanBuffer, int WaitTillSizeAvailable)
+        public static ReadOnlyMemory<byte> Receive(this Socket Connection, ref HeartBeat KeepAlive, ref byte[] Buffer, int WaitTillSizeAvailable)
         {
+            // Handles connection heartbeat/timeout - sending/receiving data (should automatically update the beats if the data goes through)
+            if (KeepAlive.IsTimeout() || Connection.IsGracefulShutdown()) return default;
 
             // Make sure connect is valid before any errors - needs implemented
             if (Connection.Available > WaitTillSizeAvailable)
             {
+                KeepAlive.SetLastBeat(); // Valid data is considered a beat
 
                 // Use span to capture our data, Then use the base bytes to write to memory
-                //Span<byte> SpanBuffer = new Span<byte>(Buffer); - removed due to being reallocated every time
+                Span<byte> SpanBuffer = new Span<byte>(Buffer); 
 
                 // Attempt to retrieve our custom packet from this connection
                 int ReceivedLength = Connection.Receive(SpanBuffer);
