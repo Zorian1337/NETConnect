@@ -12,9 +12,16 @@ namespace NETConnect.Shared
         const int bufferSize = 64 * 1024; // 64 KB
         public byte[] UTF8Bufer = new byte[bufferSize];
 
-        public byte[] ByteBuffer = new byte[bufferSize];
+        // Used as network buffers
+        public byte[] ReadBuffer = new byte[bufferSize];  // Used when trying to read socket data
+        public byte[] WriteBuffer = new byte[bufferSize]; // Used when trying to send socket data
 
-        public char[] CharBuffer = new char[bufferSize];
+        // Used as serialization buffers
+        public byte[] ReadUTF8Buffer = new byte[bufferSize]; // Used when converting Byte to UTF8  (From UTF8 to Byte)
+        public byte[] WriteUTF8Bufer = new byte[bufferSize]; // Used when converting UTF8 to Byte (From Byte to UTF8)
 
+        // Used as string buffers (byte conversions to string)
+        public char[] ReadCharBuffer = new char[bufferSize]; 
+        public char[] WriteCharBuffer = new char[bufferSize];
     }
 }
