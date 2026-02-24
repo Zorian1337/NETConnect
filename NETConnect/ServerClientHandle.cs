@@ -16,24 +16,31 @@ namespace NETConnect;
 // Per server client this will hold important data as to reference the client, the clients buffer, connection data etc
 public class ServerClientHandle
 {
+    public PacketHelper PacketHelper {  get; private set; }
+    public CancellationTokenSource ClientToken { get; private set; }
     public Guid Id { get; set; } = new Guid();
     public Socket Connection { get; private set; }
     public NetworkBuffer Buffers { get; private set; }
     public DateTime ConnectedAt { get; private set; }
     public DateTime LastPingAt { get; private set; }
+    public DateTime PingSentAt { get; private set; }
 
-    public int TimeoutInSecondsAfterNoPing = 90; // default 90
+    public int TimeoutInSecondsAfterNoPing = 10; // default 90
     public int SendPingInSeconds = 5; // default 30
+    public int SendPingCoolDownInSeconds = 5; 
 
-    public ServerClientHandle(Socket connection, NetworkBuffer buffers, DateTime connectedAt)
+
+
+    public ServerClientHandle(Socket connection, NetworkBuffer buffers, DateTime connectedAt, ref CancellationTokenSource ClientToken)
     {
         Connection = connection;
         Buffers = buffers;
         ConnectedAt = connectedAt;
         LastPingAt = DateTime.UtcNow;
+        this.ClientToken = ClientToken;
     }
 
-
+    public void AddPacketHelper(ref PacketHelper Helper) => this.PacketHelper = Helper;
 
     public bool TrySendPing(out bool TimedOut)
     {
@@ -43,23 +50,31 @@ public class ServerClientHandle
             // Check if its time to ping
             if(DateTime.UtcNow >= LastPingAt.AddSeconds(SendPingInSeconds))
             {
-                // Attempt to send ping
-                //Connection.SendUTF8("<PING>", ref Buffers.ByteBuffer);// changing text later but we at least need to send the ping
-
-                var obj = new
+                // Cooldown to prevent ping spam if ping is missed
+                if(DateTime.UtcNow >= PingSentAt.AddSeconds(SendPingCoolDownInSeconds))
                 {
-                    Time = DateTime.Now
-                };
+                    PingSentAt = DateTime.UtcNow;
+                    var obj = new
+                    {
+                        Time = DateTime.Now
+                    };
 
-                string json = JsonSerializer.Serialize(obj);
-                Connection.Send(ref Buffers.ByteBuffer, json.ToUTF8Byte(Buffers.ByteBuffer), PacketActionType.Ping);
+                    string json = JsonSerializer.Serialize(obj);
 
-
-                // Mark ping sucessful
+                    PacketHelper.SendUTF8Packet(json, PacketActionType.Ping);
+                }
             }
 
+            // Check for timeout
+            if (DateTime.UtcNow >= LastPingAt.AddSeconds(TimeoutInSecondsAfterNoPing))
+            {
+                TimedOut = true;
+                return false;
+            }
+
+
         }
-        catch (Exception ex) { TimedOut = true; }
+        catch (Exception Ex) { Console.WriteLine($"{Ex.ToString()}"); TimedOut = true; }
 
         // Check last ping vs current time to determine if its a timeout
 

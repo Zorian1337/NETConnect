@@ -9,6 +9,11 @@ namespace NETConnect.Shared
     // Creates an instance of a buffer per networking item
     public class NetworkBuffer
     {
+        /// <summary>
+        /// Never to be written to just coppied and used when needed
+        /// </summary>
+        public static byte[]  ScratchBuffer = new byte[bufferSize];
+
         const int bufferSize = 64 * 1024; // 64 KB
 
         // Used as network buffers

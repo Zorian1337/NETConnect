@@ -2,30 +2,48 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+
 
 namespace NETConnect.MyExtensions;
 
 public static class EncodingExtensions
 {
-
-
-    public static ReadOnlySpan<char> ToUTF8String(this ReadOnlySpan<byte> UTF8Byte, char[] CharBuffer)
+    public static string ToJSON(this object Obj, JsonSerializerOptions? Options = null)
     {
-        // Reuse the Buffer to prevent GC strain
+        if (Obj == null) return string.Empty;
 
-        Span<char> _CharBuffer = new Span<char>(CharBuffer);
-        int charWritten = Encoding.UTF8.GetChars(UTF8Byte, _CharBuffer);
+        try { return JsonSerializer.Serialize(Obj, Options); }
+        catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }
 
-        return _CharBuffer.Slice(0, charWritten);
+        return string.Empty;
     }
 
-    public static ReadOnlySpan<byte> ToUTF8Byte(this string UTF8String, byte[] Buffer) // Using the same buffer causes issues as to missing text being encoded
+    public static bool IsValidJSON<T>(this string JSON, out T data, JsonSerializerOptions? Options = null)
     {
-        Span<byte> _Buffer = new Span<byte>(Buffer);
-        int bytesWritten = Encoding.UTF8.GetBytes(UTF8String.AsSpan(), _Buffer);
-        return _Buffer.Slice(0, bytesWritten);
+        data = default;
+
+        if (string.IsNullOrEmpty(JSON) || string.IsNullOrWhiteSpace(JSON)) return false;
+
+        try
+        {
+            data = JsonSerializer.Deserialize<T>(JSON, Options); 
+            return true;
+        }
+        catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }
+
+        return false;
+    }
+
+    public static byte[] SafeBufferCopy(this byte[] Buffer, int UsedLength)
+    {
+        // Make a copy of the buffer to prevent overwrite
+        byte[] safeData = new byte[UsedLength];
+        Array.Copy(Buffer, 0, safeData, 0, UsedLength);
+
+        return safeData;
     }
 
     public static byte[] ToUTF8Byte(this string UTF8String) => Encoding.UTF8.GetBytes(UTF8String);

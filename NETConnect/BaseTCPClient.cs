@@ -1,4 +1,6 @@
-﻿using NETConnect.MyExtensions;
+﻿using NETConnect.Encryption.Crypt;
+using NETConnect.MyExtensions;
+using NETConnect.MyExtensions.Encryption;
 using NETConnect.Shared;
 using NETConnect.Shared.Packet;
 using System;
@@ -8,6 +10,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,20 +19,18 @@ namespace NETConnect;
 public class BaseTCPClient
 {
     public Socket SocketClient { get; set; }
-
-    public CancellationToken Token { get; set; }
-
+    public CancellationTokenSource Token { get; set; }
     public IPEndPoint? EndPoint { get; set; }
 
-    public int Port { get; set; }
 
+    public PacketHelper Packer { get; set; }
+    public int Port { get; set; }
 
     public NetworkBuffer NetworkBuffer { get; set; } 
 
     public event Action OnConnected;
     public event Action OnDisconnected;
     public event Action<ReadOnlySpan<byte>> OnDataReceived;
-
 
     public bool TryConnect(string IP, int Port)
     {
@@ -38,7 +39,7 @@ public class BaseTCPClient
         {
             SocketClient = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-            Token = new CancellationToken();
+            Token = new CancellationTokenSource();
 
             NetworkBuffer = new NetworkBuffer();
 
@@ -54,8 +55,13 @@ public class BaseTCPClient
             // Try to connect to server here
             this.EndPoint = new IPEndPoint(_IPAddress, Port);
 
-            try { SocketClient.Connect(EndPoint); OnConnected?.Invoke(); return true; }
-            catch (Exception Ex) { Debug.WriteLine($"TryConnect Exception: {Ex.ToString()}"); }
+            try
+            {
+                SocketClient.Connect(EndPoint); 
+                OnConnected?.Invoke(); 
+                return true;
+            }
+            catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine($"TryConnect Exception: {Ex.ToString()}"); }
             
             // Failed to parse IPAddress
             return false;
@@ -67,48 +73,144 @@ public class BaseTCPClient
 
     public void HandleConnected()
     {
-        Console.WriteLine("ClientAPP connected to server");
-
-        Span<byte> Buffer = new Span<byte>(NetworkBuffer.ByteBuffer);
+        Console.WriteLine($"[CLIENT] Connected to server [{SocketClient.RemoteEndPoint.ToString()}]");
 
         var Client = SocketClient;
         var Buffers = NetworkBuffer;
-        PacketHelper Packer = new PacketHelper(ref Client, ref Buffers);
+        // Need this to pass references to things that might still trying to run after disconnect - probably pass into helper
+        CancellationTokenSource TokenSource = Token;
+        Packer = new PacketHelper(ref Client, ref Buffers, ref TokenSource); //, 
+        //Packer.SendUTF8Packet("Hello Server!, I am new here");
 
-        Packer.SendUTF8Packet("Hello Server!, I am new here");
+        HeartBeat heartBeat = new HeartBeat();
 
-        while (!Token.IsCancellationRequested)
+        bool VoiceStarted = false;
+
+
+        Task.Run(() =>
         {
-            Thread.Sleep(100);
-
-            ReadOnlyMemory<byte> Packet = SocketClient.Receive(ref NetworkBuffer.ByteBuffer, ref Buffer, 4);
-            if (SocketClient.ReadForPacketV2(Packet, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData))
+            bool IsAuthenticated = false;
+            while (!Token.IsCancellationRequested)
             {
-                //Console.WriteLine("SERVER => Packet has been found!");
-                // Group packets that are split (when more than one packet at once is supported)
+                Thread.Sleep(5);
 
-                if(Headers.Length > 0) 
+
+                var Helper = Packer;
+
+
+                if (IsAuthenticated)
                 {
-                    // Only one header available so just grab first
-                    PacketHeader Header = Headers.FirstOrDefault();
-                    ReadOnlyMemory<byte> Data = PacketData.FirstOrDefault();
+                    // Check for ping every so often
+                    if (!heartBeat.TrySendHeartBeat(ref Helper, out bool IsDisconnected) && IsDisconnected)
+                    {
+                        Token.Cancel();
+                        Console.WriteLine("[Client] Timed out");
+                        return;
+                    }
 
-                    // Handle Packet per Action
-                    HandleAction(Header, Data, Packer);
+                    // This works but we'll mess with that later after auth
+                    //if (!VoiceStarted) { Audio.Audio.StartStreaming(ref Helper); VoiceStarted = true; }
+                    //else if (VoiceStarted && Token.IsCancellationRequested) { Audio.Audio.StopStreaming(); }
+
+                    // Complete normal auth then share your peer list
+
+                    // receive normal messages after auth
+                    byte[] Packet = SocketClient.ReceivePacket(ref heartBeat, out PacketHeader Header);
+                    if (Header.PacketAction != PacketActionType.Empty)
+                    {
+
+
+
+                        //Console.WriteLine($"[ClientPacketData] {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
+                        HandleAction(Header, Packet, Packer);
+                    }
                 }
-            }        }
+                else
+                {
+                    // Uses receive version without a heartbeat requirement so we can authenticate before setting up pings
+                    byte[] Packet = SocketClient.ReceivePacket(out PacketHeader Header);
+                    if (Header.PacketAction != PacketActionType.Empty)
+                    {
+                        Console.WriteLine($"[ClientPacketData] {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt} - debug: \"{Packet.ToUTF8String()}\"");
+
+                        string JSON = string.Empty;
+
+                        // If client isnt authenticated drop packets that arent allowed
+                        switch (Header.PacketAction)
+                        {
+                            // Client connects to server, Server Sends SYN (includes server settings, public RSA key)
+                            case PacketActionType.SYN:
+                                // Client responds with SYNAck sending its public RSAKey (Encrypted with the servers PublicKey) for privacy
+
+                                JSON = Packet.ToUTF8String();
+
+                                if(JSON.IsValidJSON(out PacketAuthentication AuthPacket))
+                                {
+                                    Console.WriteLine("[Client] ValidAuth");
+                                    Console.WriteLine(AuthPacket.KeyData);
+
+                                    // Generate Keys based on server encryption
+                                    int KeySize = (int)AuthPacket.KeyData.GetRSASecurityLevel();
+
+                                    Packer.EncryptionKeys.UpdateLocalRSAKeys(KeySize, RSACrypt.CreateExport(KeySize));
+                                    Packer.EncryptionKeys.SetRemoteRSAKey(AuthPacket.KeyData);
+
+                                    PacketAuthentication Auth = new PacketAuthentication()
+                                    {
+                                        EncryptionType = AuthPacket.EncryptionType,
+                                        KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
+                                    };
+
+                                    Packer.SendPacket(Auth.ToJSON().ToUTF8Byte().EncryptRSA(AuthPacket.KeyData), PacketActionType.SYN);
+                                    Console.WriteLine("[Client] sent RSAPubkey to server");
+                                }
+
+                                break;
+                            // Server sends back the client an AES key encrypted with its PubRSAKey
+                            case PacketActionType.SYNAck:
+                                // Client Encrypts some data, sends it to server with SYNCAck, and some Hashing for integrity
+                                break;
+                            // Server sends client Ack confirming the data was able to be read and verified
+                            case PacketActionType.ACK:
+                                // Client sends one final Ack to the server to also confirm it was able to read the data
+                                break;
+                            default: break;
+                        }
+                    }
+
+
+                }
+
+
+              
+            }
+        });
     }
 
     public  void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
     {
+
         switch (Header.PacketAction)
         {
-            case PacketActionType.Ping: // Server sends client ping, client sends back pong
+            case PacketActionType.Ping:
                 Helper.SendUTF8Packet("<PONG>", PacketActionType.Pong);
+                //Console.WriteLine("Server Sent Client <PING>");
+                //Helper.SendUTF8Packet("Ping Received, Handling Accordingly", PacketActionType.Data);
+                //OnDataReceived.Invoke(Data.Span);
+                break;
+            case PacketActionType.Pong:
+                // Update the heartbeat 
+
+                //Console.WriteLine("Ponging");
+                //Helper.SendUTF8Packet("Server Sent Client <PONG>", PacketActionType.Data);
+                //Helper.SendUTF8Packet("Pong Received, Handling Accordingly", PacketActionType.Data);
+                //OnDataReceived.Invoke(Data.Span);
+                break;
+            case PacketActionType.Data:
+                //Console.WriteLine($"server sent to client => {Data.Span}");
                 OnDataReceived.Invoke(Data.Span);
                 break;
-
-            case PacketActionType.Data:
+            default:
                 OnDataReceived.Invoke(Data.Span);
                 break;
         }
@@ -116,7 +218,10 @@ public class BaseTCPClient
 
     public void HandleOnDataReceived(ReadOnlySpan<byte> Data)
     {
+        byte[] DATA = Data.ToArray();
+
+        if (DATA.Length == 0) return;
         // Print the message that was received from the client
-        Console.WriteLine($"Server => \"{Data.ToUTF8String(NetworkBuffer.CharBuffer)}\""); 
+        Console.WriteLine($"Client Received => \"{DATA.ToUTF8String()}\""); 
     }
 }

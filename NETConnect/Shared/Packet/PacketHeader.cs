@@ -11,9 +11,10 @@ namespace NETConnect.Shared.Packet;
 
 public enum PacketActionType : ushort // ushort is 2 bytes
 {
+    Empty = 0,
     Ping, Pong,
     SYN, SYNAck, ACK,
-    Data
+    Data, Voice
 }
 
 public enum PacketEncodingType : ushort
@@ -26,6 +27,7 @@ public enum PacketEncodingType : ushort
 
 public enum PacketEncryptionType : ushort 
 {
+    NONE,
     AES, 
     RSA
 }
@@ -42,18 +44,18 @@ public struct PacketHeader
     public int ByteLength { get; set; }
     public PacketActionType PacketAction { get; set; }
     public PacketEncodingType PacketEncodingType { get; set; }
-    public long SentAt { get; set; }
+    public long SentAt { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     //public 
 
 
-    public const int HeaderSize = 8;
+    public const int HeaderSize = 16;
     public Span<byte> WriteTo(Span<byte> buffer)
     {
         // Writes packet length first as thats more important 
         BinaryPrimitives.WriteInt32LittleEndian(buffer, ByteLength); // Ints are 4 bytes
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(4), (ushort)PacketAction); // Slice into the buffer holding the int from the first insert
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(6), (ushort)PacketEncodingType); // Does the same as above but includes the Packet action (adds 2 more bytes for the ushort) 
-        
+        BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(8), SentAt); // Skips first 8 to write the next 8
         
         return buffer.Slice(0, HeaderSize); // Returns the amount of bytes that we written to buffer
     }
@@ -88,6 +90,7 @@ public struct PacketHeader
                 Packet.ByteLength = DataLength;
                 Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(4).Span);
                 Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(6).Span);
+                Packet.SentAt = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(8).Span);
 
                 Headers = new PacketHeader[] { Packet };
 
@@ -113,6 +116,7 @@ public struct PacketHeader
             Packet.ByteLength = BinaryPrimitives.ReadInt32LittleEndian(buffer.Span);
             Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4).Span);
             Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(6).Span);
+            Packet.SentAt = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(8).Span);
 
             // Return Header, packet data is probably null
             Headers = new PacketHeader[] { Packet };
@@ -122,5 +126,29 @@ public struct PacketHeader
         }
 
         return false;
+    }
+
+    public static bool ValidateHeader(byte[] HeaderBytes, out PacketHeader Header)
+    {
+        Header = default;
+
+        if (HeaderBytes.Length == PacketHeader.HeaderSize)
+        {
+            Span<byte> Buffer = new Span<byte>(HeaderBytes);
+
+            try
+            {
+                PacketHeader Packet = new PacketHeader();
+                Packet.ByteLength = BinaryPrimitives.ReadInt32LittleEndian(Buffer);
+                Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(4));
+                Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(6));
+                Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(Buffer.Slice(8));
+
+                Header = Packet;
+                return true;
+            }
+            catch (Exception Ex) { Console.WriteLine(Ex.ToString()); return false; }
+        }
+        else return false;
     }
 }

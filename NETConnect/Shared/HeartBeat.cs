@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Sockets;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -20,9 +21,9 @@ public class HeartBeat
     /// </summary>
     public DateTime LastPulseAt { get; set; } = DateTime.UtcNow;
 
-    public int TimeoutAfterInSeconds = 10; // default 90
+    public int TimeoutAfterInSeconds = 50; // default 90
     public int PulseAtInSeconds = 5; // default 30
-    public int PulseCooldown = 5;
+    public int PulseCooldown = 10;
 
     public bool IsTimeout()
     {
@@ -30,7 +31,7 @@ public class HeartBeat
         else return false;
     }
 
-    public void SetLastBeat()
+    public void SetLastBeat() //bool JustBeat = true
     {
         // Beats can be either when a message is received or over a time where there is no network activity and one gets sent 
         LastBeatAt = DateTime.UtcNow;
@@ -38,42 +39,32 @@ public class HeartBeat
 
     }
 
-    //public bool TrySendPing(out bool TimedOut)
-    //{
-    //    TimedOut = false;
-    //    try
-    //    {
-    //        // Check if its time to ping
-    //        if (DateTime.UtcNow >= LastBeatAt.AddSeconds(PulseAtInSeconds))
-    //        {
-    //            // Cooldown to prevent ping spam if ping is missed
-    //            if (DateTime.UtcNow >= LastPulseAt.AddSeconds(PulseCooldown))
-    //            {
-    //                LastPulseAt = DateTime.UtcNow;
-    //                var obj = new
-    //                {
-    //                    Time = DateTime.Now
-    //                };
+    public bool TrySendHeartBeat(ref PacketHelper Helper, out bool IsDisconnected)
+    {
+        IsDisconnected = false;
 
-    //                string json = JsonSerializer.Serialize(obj);
+        // Check for timeout or Disconnect
+        if (Helper.Connection.IsGracefulShutdown() || IsTimeout())
+        {
+            IsDisconnected = true;
+            return false; // Didnt send heartbeat, but IsDisconnected
+        }
 
-    //                //PacketHelper.SendUTF8Packet(json, PacketActionType.Ping);
-    //            }
-    //        }
+        DateTime now = DateTime.UtcNow;
 
-    //        // Check for timeout
-    //        if (DateTime.UtcNow >= LastBeatAt.AddSeconds(TimeoutAfterInSeconds))
-    //        {
-    //            TimedOut = true;
-    //            return false;
-    //        }
+        // Check if Time for beat, and if its not a pulse cooldown
+        if(now >= LastBeatAt.AddSeconds(PulseAtInSeconds) && now >= LastPulseAt.AddSeconds(PulseCooldown))
+        {
+            // Send heartBeat here
+            int bytesSent = Helper.SendUTF8Packet("<PING>", PacketActionType.Ping);
+
+            if (bytesSent > 0) { SetLastBeat(); return true; }
+            else { IsDisconnected = true; return false; } // Failed to send ping, probably due to socket exception 
+            //LastPulseAt = DateTime.UtcNow;
+        }
+
+        return false; // By default a heartBeat was not sent, and the connection was not disconnected
+    }
 
 
-    //    }
-    //    catch (Exception Ex) { Console.WriteLine($"{Ex.ToString()}"); TimedOut = true; }
-
-    //    // Check last ping vs current time to determine if its a timeout
-
-    //    return false; // False means it didnt ping
-    //}
 }
