@@ -18,6 +18,7 @@ namespace NETConnect;
 
 public class BaseTCPClient
 {
+    public Guid PeerId { get; set; }
     public Socket SocketClient { get; set; }
     public CancellationTokenSource Token { get; set; }
     public IPEndPoint? EndPoint { get; set; }
@@ -31,6 +32,8 @@ public class BaseTCPClient
     public event Action OnConnected;
     public event Action OnDisconnected;
     public event Action<ReadOnlySpan<byte>> OnDataReceived;
+
+    public BaseTCPClient(Guid PeerId) { this.PeerId = PeerId; }
 
     public bool TryConnect(string IP, int Port)
     {
@@ -73,7 +76,8 @@ public class BaseTCPClient
 
     public void HandleConnected()
     {
-        Console.WriteLine($"[CLIENT] Connected to server [{SocketClient.RemoteEndPoint.ToString()}]");
+        string ClientEndPoint = SocketClient.RemoteEndPoint.ToString();
+        Console.WriteLine($"[CLIENT] Connected to server [{ClientEndPoint}]");
 
         var Client = SocketClient;
         var Buffers = NetworkBuffer;
@@ -89,7 +93,7 @@ public class BaseTCPClient
 
         Task.Run(() =>
         {
-            bool IsAuthenticated = false;
+            bool IsAuthenticated = true;
             while (!Token.IsCancellationRequested)
             {
                 Thread.Sleep(5);
@@ -140,14 +144,16 @@ public class BaseTCPClient
                         {
                             // Client connects to server, Server Sends SYN (includes server settings, public RSA key)
                             case PacketActionType.SYN:
+                                Console.WriteLine($"Auth Received from {ClientEndPoint}");
+
                                 // Client responds with SYNAck sending its public RSAKey (Encrypted with the servers PublicKey) for privacy
 
                                 JSON = Packet.ToUTF8String();
 
                                 if(JSON.IsValidJSON(out PacketAuthentication AuthPacket))
                                 {
-                                    Console.WriteLine("[Client] ValidAuth");
-                                    Console.WriteLine(AuthPacket.KeyData);
+                                    //Console.WriteLine("[Client] ValidAuth");
+                                    //Console.WriteLine(AuthPacket.KeyData);
 
                                     // Generate Keys based on server encryption
                                     int KeySize = (int)AuthPacket.KeyData.GetRSASecurityLevel();
@@ -155,14 +161,15 @@ public class BaseTCPClient
                                     Packer.EncryptionKeys.UpdateLocalRSAKeys(KeySize, RSACrypt.CreateExport(KeySize));
                                     Packer.EncryptionKeys.SetRemoteRSAKey(AuthPacket.KeyData);
 
-                                    PacketAuthentication Auth = new PacketAuthentication()
-                                    {
-                                        EncryptionType = AuthPacket.EncryptionType,
-                                        KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
-                                    };
+                                    // Send as AES
+                                    //PacketAuthentication Auth = new PacketAuthentication()
+                                    //{
+                                    //    EncryptionType = AuthPacket.EncryptionType,
+                                    //    KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
+                                    //};
 
-                                    Packer.SendPacket(Auth.ToJSON().ToUTF8Byte().EncryptRSA(AuthPacket.KeyData), PacketActionType.SYN);
-                                    Console.WriteLine("[Client] sent RSAPubkey to server");
+                                    //Packer.SendPacket(Auth.ToJSON().ToUTF8Byte().EncryptRSA(AuthPacket.KeyData), PacketActionType.SYN);
+                                    //Console.WriteLine("[Client] sent RSAPubkey to server");
                                 }
 
                                 break;

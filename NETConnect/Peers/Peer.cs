@@ -4,18 +4,28 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NETConnect.Peers;
 
 public class Peer
 {
+    public Guid PeerId
+    {
+        get => Multicast.SenderId;
+    }
+
     // So each peer is a server and a client
 
     // Locally clients will use udp multicast groups to look for groups
 
     // List of clients inside the peer so that each peer can be connected to others
     public List<BaseTCPClient> Clients { get; set; } = new List<BaseTCPClient>();
+
+    public List<PeerTable> Peers { get; set; } = new List<PeerTable>();
+
+    
     public BaseTCPServer TCPServer { get; set; }
     public Multicast Multicast { get; set; }
 
