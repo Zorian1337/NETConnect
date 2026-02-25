@@ -29,6 +29,19 @@ public class Peer
     public BaseTCPServer TCPServer { get; set; }
     public Multicast Multicast { get; set; }
 
+    /// <summary>
+    /// Quick way to detect if current state is peer or server
+    /// </summary>
+    public PeerState OperationMode
+    {
+        get
+        {
+            if(TCPServer.Clients.Count >= 0 && Peers.Count() == 0) return PeerState.Server;
+            else if(Peers.Count() > 0) return PeerState.Peer;
+            else return PeerState.Server;
+        }
+    }
+
 
     public Peer(IPAddress Address, int Port)
     {
@@ -46,8 +59,44 @@ public class Peer
     }
 
 
-    //public void Start()
-    //{
+public static class PeerUtils
+{
+    public static (ServerClientHandle, PeerTable) FindPeerById(this Peer Self, Guid PeerId)
+    {
+        if (Self.Peers.Any(x => x.PeerId == PeerId) && Self.TCPServer.Clients.Any(x => x.PacketHelper.ClientHandle.Id == PeerId))
+        {
+            PeerTable Peer = Self.Peers.Find(x => x.PeerId == PeerId);
+            ServerClientHandle Client = Self.TCPServer.Clients.Find(x => x.PacketHelper.ClientHandle.Id == PeerId);
+            
+            return(Client, Peer);
+        }
+        else return default; // No matching peers
+    }
+
+
+    /// <summary>
+    /// Checks to see if any peers is either connected or is known in the provided list
+    /// </summary>
+    /// <param name="Self"></param>
+    /// <param name="PeerList"></param>
+    /// <param name="UniquePeers"></param>
+    /// <returns></returns>
+    public static bool IsUniquePeers(this Peer Self, List<PeerTable> PeerList, out List<PeerTable> UniquePeers)
+    {
+        UniquePeers = Enumerable.Empty<PeerTable>().ToList();
+
+        try
+        {
+            List<PeerTable> Peers = GetUniquePeers(Self, PeerList);
+
+            if (Peers is null || Peers.Count == 0) return false;
+            else
+            {
+                UniquePeers = Peers;
+                return true;
+            }
+        }
+        catch (Exception Ex) {  } // Populate catch later
 
 
     //    // Host a server on the local port 
@@ -58,3 +107,6 @@ public class Peer
 
 }
 
+
+    public static List<PeerTable> GetUniquePeers(Peer Self, List<PeerTable> PeerList) => PeerList.Where(x => !(Self.Peers.Any(a => x.PeerId == a.PeerId) && x.PeerId != Self.PeerId)).ToList();
+}
