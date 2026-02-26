@@ -52,9 +52,9 @@ public class SecurityKey
 
     public void SetRemoteRSAKey(byte[] RemoteRSAKey)
     {
-        Console.WriteLine("setting key");
+        //Console.WriteLine("setting key");
         this.RemoteRSAPubKey = RemoteRSAKey;
-        Console.WriteLine("Set RemoteRSAKey");
+        //Console.WriteLine("Set RemoteRSAKey");
     }
 
 }

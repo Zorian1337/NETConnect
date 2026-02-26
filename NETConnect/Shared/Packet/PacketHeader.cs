@@ -14,7 +14,29 @@ public enum PacketActionType : ushort // ushort is 2 bytes
     Empty = 0,
     Ping, Pong,
     SYN, SYNAck, ACK,
-    Data, Voice
+    Data, Voice,
+
+    #region Peer to Peer Types...
+    /// <summary>
+    /// Sent when the remote party wants to form a p2p network
+    /// </summary>
+    P2PInt, 
+    
+    /// <summary>
+    /// Signals to the remote party that a peer has joined, and forwards their information
+    /// </summary>
+    PeerJoin, 
+    
+    /// <summary>
+    /// Signals when a peer has been shared from another peer (it gets discovery but doesnt have to be connected)
+    /// </summary>
+    PeerShared,
+
+    /// <summary>
+    /// Signals to the remote party that a peer has left, and forwards their information
+    /// </summary>
+    PeerLeave
+    #endregion
 }
 
 public enum PacketEncodingType : ushort

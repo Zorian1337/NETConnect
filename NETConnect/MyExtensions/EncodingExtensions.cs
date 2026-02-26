@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
@@ -32,7 +33,7 @@ public static class EncodingExtensions
             data = JsonSerializer.Deserialize<T>(JSON, Options); 
             return true;
         }
-        catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }
+        catch (Exception Ex) { Debug.WriteLine(Ex.ToString()); }
 
         return false;
     }

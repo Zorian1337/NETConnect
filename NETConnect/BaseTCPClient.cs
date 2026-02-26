@@ -1,6 +1,8 @@
 ﻿using NETConnect.Encryption.Crypt;
 using NETConnect.MyExtensions;
 using NETConnect.MyExtensions.Encryption;
+using NETConnect.Network;
+using NETConnect.Peers;
 using NETConnect.Shared;
 using NETConnect.Shared.Packet;
 using System;
@@ -11,6 +13,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices.Swift;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -18,12 +21,15 @@ namespace NETConnect;
 
 public class BaseTCPClient
 {
-    public Guid PeerId { get; set; }
+    public Peer Self { get; private set; }
+    public Guid PeerId { get; private set; }
     public Socket SocketClient { get; set; }
     public CancellationTokenSource Token { get; set; }
     public IPEndPoint? EndPoint { get; set; }
 
 
+
+    public HeartBeat HeartBeat { get; set; }
     public PacketHelper Packer { get; set; }
     public int Port { get; set; }
 
@@ -33,8 +39,8 @@ public class BaseTCPClient
     public event Action OnDisconnected;
     public event Action<ReadOnlySpan<byte>> OnDataReceived;
 
-    public BaseTCPClient(Guid PeerId) { this.PeerId = PeerId; }
-
+    public BaseTCPClient(ref Peer Self) { this.Self = Self; }
+    //public BaseTCPClient(Guid PeerId) { this.PeerId = PeerId; }
     public bool TryConnect(string IP, int Port)
     {
         // Init some starting client stuff
@@ -77,19 +83,26 @@ public class BaseTCPClient
     public void HandleConnected()
     {
         string ClientEndPoint = SocketClient.RemoteEndPoint.ToString();
-        Console.WriteLine($"[CLIENT] Connected to server [{ClientEndPoint}]");
+        //Console.WriteLine($"[CLIENT] Connected to server [{ClientEndPoint}]");
 
         var Client = SocketClient;
         var Buffers = NetworkBuffer;
         // Need this to pass references to things that might still trying to run after disconnect - probably pass into helper
         CancellationTokenSource TokenSource = Token;
         Packer = new PacketHelper(ref Client, ref Buffers, ref TokenSource); //, 
-        //Packer.SendUTF8Packet("Hello Server!, I am new here");
 
-        HeartBeat heartBeat = new HeartBeat();
-
+        HeartBeat = new HeartBeat();
+        var heartBeat = HeartBeat;
         bool VoiceStarted = false;
 
+
+        //Console.WriteLine($"[Client] I connected to {Client.RemoteEndPoint} but this is my ID [{Self.PeerId}]:{NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.LocalEndPoint).Port}");
+        Console.WriteLine($"[Client] Server: {Client.RemoteEndPoint} - Me: {NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.LocalEndPoint).Port} - ClientId: {Self.PeerId}");
+
+
+
+        // Client sends all realavent information to become a p2p system
+        //if (P2PMerge) Packer.SendUTF8Packet($"{}", PacketActionType.P2PInt);
 
         Task.Run(() =>
         {
@@ -108,6 +121,23 @@ public class BaseTCPClient
                     if (!heartBeat.TrySendHeartBeat(ref Helper, out bool IsDisconnected) && IsDisconnected)
                     {
                         Token.Cancel();
+
+                        if (Self.OperationMode == PeerState.Peer)
+                        {
+
+                            var PeerInfo = Self.FindPeerById(Self.PeerId);
+
+                            if (PeerInfo is not null)
+                            {
+                                Self.TCPServer.Clients.Remove(PeerInfo.Value.Item1);
+                                Self.Peers.Remove(PeerInfo.Value.Item2);
+
+                                // Announce to all other clients that peer disconnected
+                                Self.Peers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
+                            }
+                        }
+
+
                         Console.WriteLine("[Client] Timed out");
                         return;
                     }
@@ -122,10 +152,13 @@ public class BaseTCPClient
                     byte[] Packet = SocketClient.ReceivePacket(ref heartBeat, out PacketHeader Header);
                     if (Header.PacketAction != PacketActionType.Empty)
                     {
+                        if(Header.PacketAction != PacketActionType.Ping && Header.PacketAction != PacketActionType.Pong)
+                        {
+                            //Console.WriteLine($"[ClientPacketData] {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
+                        }
+                            
 
 
-
-                        //Console.WriteLine($"[ClientPacketData] {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
                         HandleAction(Header, Packet, Packer);
                     }
                 }
@@ -135,7 +168,7 @@ public class BaseTCPClient
                     byte[] Packet = SocketClient.ReceivePacket(out PacketHeader Header);
                     if (Header.PacketAction != PacketActionType.Empty)
                     {
-                        Console.WriteLine($"[ClientPacketData] {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt} - debug: \"{Packet.ToUTF8String()}\"");
+                        //Console.WriteLine($"[ClientPacketData] {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt} - debug: \"{Packet.ToUTF8String()}\"");
 
                         string JSON = string.Empty;
 
@@ -144,7 +177,7 @@ public class BaseTCPClient
                         {
                             // Client connects to server, Server Sends SYN (includes server settings, public RSA key)
                             case PacketActionType.SYN:
-                                Console.WriteLine($"Auth Received from {ClientEndPoint}");
+                                //Console.WriteLine($"Auth Received from {ClientEndPoint}");
 
                                 // Client responds with SYNAck sending its public RSAKey (Encrypted with the servers PublicKey) for privacy
 
@@ -199,27 +232,15 @@ public class BaseTCPClient
 
         switch (Header.PacketAction)
         {
-            case PacketActionType.Ping:
-                Helper.SendUTF8Packet("<PONG>", PacketActionType.Pong);
-                //Console.WriteLine("Server Sent Client <PING>");
-                //Helper.SendUTF8Packet("Ping Received, Handling Accordingly", PacketActionType.Data);
-                //OnDataReceived.Invoke(Data.Span);
-                break;
-            case PacketActionType.Pong:
-                // Update the heartbeat 
-
-                //Console.WriteLine("Ponging");
-                //Helper.SendUTF8Packet("Server Sent Client <PONG>", PacketActionType.Data);
-                //Helper.SendUTF8Packet("Pong Received, Handling Accordingly", PacketActionType.Data);
-                //OnDataReceived.Invoke(Data.Span);
-                break;
+            case PacketActionType.Ping: HeartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+            case PacketActionType.Pong: HeartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
             case PacketActionType.Data:
                 //Console.WriteLine($"server sent to client => {Data.Span}");
                 OnDataReceived.Invoke(Data.Span);
                 break;
-            default:
-                OnDataReceived.Invoke(Data.Span);
-                break;
+            //default:
+            //    OnDataReceived.Invoke(Data.Span);
+            //    break;
         }
     }
 

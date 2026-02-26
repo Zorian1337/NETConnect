@@ -1,6 +1,8 @@
-﻿using NETConnect.Interfaces;
+﻿using NETConnect.CustomConsole;
+using NETConnect.Interfaces;
 using NETConnect.MyExtensions;
 using NETConnect.MyExtensions.Encryption;
+using NETConnect.Network;
 using NETConnect.Peers;
 using NETConnect.Shared;
 using NETConnect.Shared.Multicast;
@@ -24,6 +26,9 @@ public class BaseTCPServer : BaseServerProperties, IServer
     public Socket SocketServer { get; set; }
     public CancellationTokenSource ServerToken { get; set; }
     public IPAddress Address { get; set; }
+
+
+    public HeartBeat HeartBeat { get; set; }
 
 
     public string ServerAddress { get; set; }
@@ -77,7 +82,6 @@ public class BaseTCPServer : BaseServerProperties, IServer
                     ServerToken = new CancellationTokenSource();
                 }
 
-
                 // Verify Address and Port arent null 
 
                 SocketServer.Bind(new IPEndPoint(Address, Port));
@@ -87,7 +91,7 @@ public class BaseTCPServer : BaseServerProperties, IServer
                 int assignedPort = ((IPEndPoint)SocketServer.LocalEndPoint).Port;
                 Port = assignedPort;
 
-                Console.WriteLine($"Server listening at {SocketServer.LocalEndPoint.ToString()}\n");
+                //Console.WriteLine($"Server listening at {SocketServer.LocalEndPoint.ToString()}\n");
 
                 // Check if multicast is valid then send announcement
                 if(Self is not null)
@@ -103,39 +107,19 @@ public class BaseTCPServer : BaseServerProperties, IServer
                     ServerAddress = $"{NetworkUtils.GetLocalLanIp()}:{Point.Port}";
                     Console.Title = $"Server: [{ServerAddress}]";
 
-                    Thread.Sleep(1000);
                     Task.Run(async () =>
                     {
                         while (!Self.TCPServer.ServerToken.IsCancellationRequested)
                         {
                             Self.Multicast.SendUTF8Message(ServerAddress, MulticastAction.Join);
-                            await Task.Delay((60 * 1000) * 1);
+                            //int DelayPerSecond = 
+                            //await Task.Delay((60 * 1000) * 1);
+                            await Task.Delay(500 * 60);
                         }
                     });
-
-
-
-                    //Console.WriteLine($"connected via {}"); //Client {remoteIp} 
 
                     // Using this for informational purposes related to peers
-                    Task.Run( () =>
-                    {
-                        while (!ServerToken.IsCancellationRequested)
-                        {
-                            Thread.Sleep(1);
-
-
-                            //Clear console for a clean display while doing peer mapping
-                            Console.Clear();
-
-                            //Console.WriteLine($"Connected Clients: {Clients.Count()}");
-                            Console.WriteLine($"Connected Peer Clients: {Self.Peers.Count()}");
-
-                            Console.WriteLine();
-
-                            Console.WriteLine($"Peers I connected to: \n{String.Join("\n", Self.Peers.Select(x => $"{x.Address}:{x.Port}"))}");
-                        }
-                    });
+                    //Task.Run(() => UpdatePeerDisplay());
                 }
 
                 // Handles searching for clients in another thread...
@@ -157,10 +141,48 @@ public class BaseTCPServer : BaseServerProperties, IServer
         });
     }
 
+    public void UpdatePeerDisplay()
+    {
+        while (!ServerToken.IsCancellationRequested)
+        {
+            Thread.Sleep(1);
+
+            //Clear console for a clean display while doing peer mapping
+            Console.Clear();
+
+            Console.WriteLine($"PeerId: {Self.PeerId} - OperationMode: {Self.OperationMode}\n");
+
+            if(Self.OperationMode == PeerState.Peer && Self.Peers.Count() > 0)
+            {
+                // Check if there are any disconnected clients and remove them from our peer list
+                if(Self.Peers.Any(x => x.Client.Token.IsCancellationRequested))
+                {
+                    List<PeerTable> expiredPeers = Self.Peers.FindAll(x => x.Client.Token.IsCancellationRequested);
+
+                    Self.Peers.RemoveAll(x => x.Client.Token.IsCancellationRequested);
+                    Self.TCPServer.Clients.RemoveAll(x => x.ClientToken.IsCancellationRequested);
+
+                    Console.WriteLine("Some peers have expired tokens!");
+                }
+
+                Console.WriteLine($"Connected Peers: {Self.Peers.Count()}\n");
+
+                Console.WriteLine($"Peers: \n{String.Join("\n", Self.Peers.Select(x => $"{x.PeerId} [{x.Address}:{x.Port}]"))}");
+            }
+            else if (Self.OperationMode == PeerState.Server && Self.TCPServer.Clients.Count() > 0)
+            {
+                Console.WriteLine($"Connected Clients: {Self.TCPServer.Clients.Count()}\n");
+
+                Console.WriteLine($"Clients: \n{String.Join("\n", Self.TCPServer.Clients.Select(x => $"[{x.Id}]"))}");
+            }
+
+        }
+    }
+
     public void HandleClientConnected(Socket client)
     {
         string ClientEndPoint = client.RemoteEndPoint.ToString();
-        Console.WriteLine($"[SERVER] Client connected to the server [{ClientEndPoint}]");
+        //Console.WriteLine($"[SERVER] Client connected to the server [{ClientEndPoint}]");
 
         CancellationTokenSource _ServerToken = ServerToken;
         CancellationTokenSource ClientToken = new CancellationTokenSource();
@@ -169,17 +191,25 @@ public class BaseTCPServer : BaseServerProperties, IServer
         var Client = client;
         NetworkBuffer Buffers = new NetworkBuffer();
 
+        // Creates a client handle 
         ServerClientHandle ClientHandle = new ServerClientHandle(client, Buffers, DateTime.UtcNow, ref ClientToken);
         PacketHelper Packer = new PacketHelper(ref Client, ref Buffers, ref ClientHandle, ref _ServerToken);
         ClientHandle.AddPacketHelper(ref Packer);
         Clients.Add(ClientHandle);
 
-        HeartBeat heartBeat = new HeartBeat();
+        // Use ClientHandle to control all aspects of the connection (I believe I wired it that way, that or PacketHelper)
+
+        var SelfPeer = Self;
+        HeartBeat = new HeartBeat(ref SelfPeer);
+        var heartBeat = HeartBeat;
+
 
         bool IsAuthenticated = true; // scraping auth for now
         bool HasSentSYN = false;
-
-
+        //but this is my ID [{Self.PeerId}]
+        //
+        //Console.WriteLine($"[Server] Client has connected to me [{ClientEndPoint}]"); //{NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.RemoteEndPoint).Port}
+        Console.WriteLine($"[Server] Client: {ClientEndPoint} - Me: {NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.LocalEndPoint).Port} - ServerId: {Self.PeerId}");
         // Handles client while token is still valid and the client hasnt timed out
         while (!ClientToken.IsCancellationRequested)
         {
@@ -191,6 +221,22 @@ public class BaseTCPServer : BaseServerProperties, IServer
                 if (!heartBeat.TrySendHeartBeat(ref Packer, out bool IsDisconnected) && IsDisconnected)
                 {
                     ClientToken.Cancel();
+
+                    if(Self.OperationMode == PeerState.Peer)
+                    {
+                        var PeerInfo = Self.FindPeerById(ClientHandle.Id);
+
+                        if (PeerInfo is not null)
+                        {
+                            Clients.Remove(PeerInfo.Value.Item1);
+                            Self.Peers.Remove(PeerInfo.Value.Item2);
+
+                            // Announce to all other clients that peer disconnected
+                            Self.Peers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
+                        }
+                    }
+
+
                     Console.WriteLine("[Server] Client Timed out");
                     return;
                 }
@@ -214,14 +260,12 @@ public class BaseTCPServer : BaseServerProperties, IServer
                         KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
                     };
 
-                    Console.WriteLine($"sending Auth to {ClientEndPoint}");
+                    //Console.WriteLine($"sending Auth to {ClientEndPoint}");
                     Packer.SendUTF8Packet(auth.ToJSON(), PacketActionType.SYN);
                     HasSentSYN = true;
 
                     // Make some timer to reenable this incase for some reason, this SYN was not detected
                 }
-
-
 
                 byte[] Packet = client.ReceivePacket(out PacketHeader Header);
 
@@ -244,7 +288,7 @@ public class BaseTCPServer : BaseServerProperties, IServer
                             if(Decrypted.Length > 0 && Decrypted.ToUTF8String().IsValidJSON(out PacketAuthentication AuthPacket))
                             {
                                 Packer.EncryptionKeys.SetRemoteRSAKey(AuthPacket.KeyData);
-                                Console.WriteLine("Client sent server their rsa pub key in the servers rsa encrypted key");
+                                //Console.WriteLine("Client sent server their rsa pub key in the servers rsa encrypted key");
                             }
 
                             break;
@@ -264,19 +308,17 @@ public class BaseTCPServer : BaseServerProperties, IServer
         }
     }
 
+
+
     public void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
     {
+        byte[] DATA = Array.Empty<byte>();
+        string UTF8 = string.Empty;
+
         switch (Header.PacketAction)
         {
-            case PacketActionType.Ping:
-                Helper.SendUTF8Packet("<PONG>", PacketActionType.Pong);
-
-                break;
-            case PacketActionType.Pong:
-
-                break;
-
-
+            case PacketActionType.Ping: HeartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+            case PacketActionType.Pong: HeartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
             case PacketActionType.SYN:
                 break;
 
@@ -290,6 +332,33 @@ public class BaseTCPServer : BaseServerProperties, IServer
                 NETConnect.Audio.Audio.QueueAudio(Data.ToArray());
                 break;
 
+            case PacketActionType.PeerJoin:
+
+                DATA = Data.ToArray();
+                UTF8 = DATA.ToUTF8String();
+
+                // Remove any potential ddduplicatesss
+                Self.Peers = Self.Peers.Distinct().ToList();
+
+                //Console.WriteLine("PeerJoin");
+                // Check if in packet init class
+                if (UTF8.IsValidJSON(out PeerTable initPeer))
+                {
+                    // Send known peers to new client
+                    Helper.SendPacket(Self.Peers.ToArray().ToJSON().ToUTF8Byte(), PacketActionType.PeerJoin);
+
+                    // Link ServerClientHandle data to PeerId
+                    Helper.ClientHandle.UpdateClientId(initPeer.PeerId); // do something around here to link Self.Peers to the Server Client Connections
+
+                    PeerTable newPeer = new PeerTable(ref Helper, initPeer.PeerId, initPeer.Address, initPeer.Port);
+                    Self.Peers.Add(newPeer);
+                }
+                else if (UTF8.IsValidJSON(out IEnumerable<PeerTable> initPeers)) // readd this maybe later for reconnects?
+                {
+
+                }
+                break;
+
             default:
                 OnDataReceived.Invoke(Helper.ClientHandle, Data.Span);
                 break;
@@ -298,45 +367,13 @@ public class BaseTCPServer : BaseServerProperties, IServer
 
 
 
-
     public void HandleDataReceived(ServerClientHandle Client, ReadOnlySpan<byte> Data)
     {
         byte[] DATA = Data.ToArray();
         string UTF8 = DATA.ToUTF8String();
         // Print the message that was received from the client
-        Console.WriteLine($"Server Received => \"{UTF8}\""); //Client.Buffers.CharBuffer
+        //Console.WriteLine($"Server Received => \"{UTF8}\""); //Client.Buffers.CharBuffer
 
 
-        if(UTF8.IsValidJSON(out PeerTable[] PeerList)){
-
-            List<PeerTable> newPeers = new List<PeerTable>();
-
-            foreach (PeerTable newPeer in PeerList)
-            {
-                if(Self.Peers.Any(x => x.PeerId == newPeer.PeerId)) { Console.WriteLine("old peer found"); }
-                else 
-                {
-                    BaseTCPClient connection = new BaseTCPClient(newPeer.PeerId);
-                    if (connection.TryConnect(newPeer.Address, newPeer.Port))
-                    {
-                        Console.WriteLine("found new peer");
-                        newPeer.Client = connection;
-                        Self.Peers.Add(newPeer);
-                        newPeers.Add(newPeer);
-                    }
-
-                    //if (Self.PeerId.CompareTo(newPeer.PeerId) < 0)
-                    //{
-
-                    //}
-                }
-            }
-
-            byte[] newPeerList = newPeers.ToArray().ToJSON().ToUTF8Byte();
-            foreach (var oldPeer in Self.Peers.Where(x => newPeers.Any(a => x.PeerId != a.PeerId)))
-            {
-                oldPeer.Client.Packer.SendPacket(newPeerList, PacketActionType.Data);
-            }
-        }
     } 
 }

@@ -40,6 +40,8 @@ public class ServerClientHandle
         this.ClientToken = ClientToken;
     }
 
+    public void UpdateClientId(Guid Id) => this.Id = Id;
+
     public void AddPacketHelper(ref PacketHelper Helper) => this.PacketHelper = Helper;
 
     public bool TrySendPing(out bool TimedOut)

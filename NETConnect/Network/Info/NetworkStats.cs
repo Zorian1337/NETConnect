@@ -4,11 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace NETConnect
+namespace NETConnect.Network.Info;
+
+public class NetworkStats
 {
-    // Handles server settings
-    public class BaseServerProperties
-    {
-        
-    }
+
 }

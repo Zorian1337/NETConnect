@@ -39,7 +39,7 @@ public static class RSAExtensions
             RSAEncryptionPadding Padding;
             switch (rsa.KeySize.GetRSASecurityLevel())
             {
-                case RSAKeySize.Weak: Padding = RSAEncryptionPadding.OaepSHA1; break;
+                case RSAKeySize.Weak: Padding = RSAEncryptionPadding.OaepSHA1; Console.WriteLine("its picking weak"); break;
                 default: Padding = RSAEncryptionPadding.OaepSHA3_256; break;
             }
 

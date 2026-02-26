@@ -1,6 +1,9 @@
-﻿using NETConnect.MyExtensions;
+﻿using NAudio.Wave;
 using NETConnect;
-
+using NETConnect.CustomConsole;
+using NETConnect.MyExtensions;
+using NETConnect.Peers;
+using NETConnect.Shared.Multicast;
 using System.Net;
 
 namespace NETConnectAPP
@@ -9,30 +12,46 @@ namespace NETConnectAPP
     {
         static void Main(string[] args)
         {
+            Peer peer = new Peer(IPAddress.Any, 0);
 
-            // Start a NETConnect server
-            BaseTCPServer Server = new BaseTCPServer(IPAddress.Any, 5000);
-            BaseTCPClient Client = new BaseTCPClient();
-
-            Task.Run(() => Server.StartServer());
-
-
-            Thread.Sleep(1000);
-            Task.Run(() => 
+            while (true)
             {
-                if (Client.TryConnect("127.0.0.1", 5000))
-                {
-                    Console.WriteLine("(NETApp)");
-                    //Client.SocketClient.Send("I have connected this is a message test!".UTF8StringToUTF8Byte(Client.NetworkBuffer.ByteBuffer));
-                }
-            });
+                //var Helper = Client.Packer;
+                //NETConnect.Audio.Audio.StartStreaming(ref Helper);
+                Thread.Sleep(1000);
 
 
 
+                //ConsoleKeyInfo Key = Console.ReadKey(true);
+                //if (Key.Key == ConsoleKey.Tab)
+                //{
+                //    //// Take current Top Location
+                //    //int CurrentTop = Console.CursorTop;
+                    
+                //    //if (Console.CursorLeft != 0)
+                //    //{
+                //    //    Console.CursorLeft = 0;
+                //    //    Console.CursorTop = CurrentTop + 1;
+                //    //}
+
+                //    //int NewTop = Console.CursorTop;
+                //    //int NewLeft = Console.CursorLeft;
+                //    //Console.Write("Your Message: ");
+
+                //    ConsoleDebugging.Print(new ConsoleDebugging.ConsoleBufferItem(Console.BufferHeight - 1, Console.CursorLeft, "Your Message: ", ConsoleDebugging.ConsoleBufferReturnPosition.NewPosition, () =>
+                //    {
+                //        string Type = Console.ReadLine();
+                //        ConsoleDebugging.Print(Type);
+                //    }));
+
+                //    string Message = Console.ReadLine();
+                //    peer.Multicast.SendUTF8Message(Message, MulticastAction.Data);
+                //}
 
 
-            while (true) { Thread.Sleep(1000); }
 
+                //peer.Multicast.SendMessage(Hash, MulticastAction.Data);
+            }
 
 
         }

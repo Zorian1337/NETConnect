@@ -3,11 +3,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Reflection.Metadata.Ecma335;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NETConnect.Peers;
+
+public enum PeerState { Server, Peer}
 
 public class Peer
 {
@@ -21,11 +25,9 @@ public class Peer
     // Locally clients will use udp multicast groups to look for groups
 
     // List of clients inside the peer so that each peer can be connected to others
-    public List<BaseTCPClient> Clients { get; set; } = new List<BaseTCPClient>();
+    //public List<BaseTCPClient> Clients { get; set; } = new List<BaseTCPClient>();
 
     public List<PeerTable> Peers { get; set; } = new List<PeerTable>();
-
-    
     public BaseTCPServer TCPServer { get; set; }
     public Multicast Multicast { get; set; }
 
@@ -50,7 +52,6 @@ public class Peer
         //Multicast.ReadMulticast(); // Scout for other peers on the network for our TCPClient to connect to (data exchange) - might need to rework some stuff later regarding this
 
         // Init our server/client
-        //TCPClient = new BaseTCPClient();  
         var Self = this;
         TCPServer = new BaseTCPServer(ref Self, Address, Port);
 
@@ -59,9 +60,11 @@ public class Peer
     }
 
 
+}
+
 public static class PeerUtils
 {
-    public static (ServerClientHandle, PeerTable) FindPeerById(this Peer Self, Guid PeerId)
+    public static (ServerClientHandle, PeerTable)? FindPeerById(this Peer Self, Guid PeerId)
     {
         if (Self.Peers.Any(x => x.PeerId == PeerId) && Self.TCPServer.Clients.Any(x => x.PacketHelper.ClientHandle.Id == PeerId))
         {
@@ -81,32 +84,40 @@ public static class PeerUtils
     /// <param name="PeerList"></param>
     /// <param name="UniquePeers"></param>
     /// <returns></returns>
-    public static bool IsUniquePeers(this Peer Self, List<PeerTable> PeerList, out List<PeerTable> UniquePeers)
+    public static bool IsUniquePeers(this Peer Self, IEnumerable<PeerTable> PeerList, out IEnumerable<PeerTable> UniquePeers)
     {
         UniquePeers = Enumerable.Empty<PeerTable>().ToList();
 
         try
         {
-            List<PeerTable> Peers = GetUniquePeers(Self, PeerList);
+            IEnumerable<PeerTable> Peers = GetUniquePeers(Self, PeerList);
 
-            if (Peers is null || Peers.Count == 0) return false;
+            if (Peers is null || Peers.Count() == 0) return false;
             else
             {
-                UniquePeers = Peers;
+                UniquePeers = Peers.Distinct().ToList();
                 return true;
             }
         }
         catch (Exception Ex) {  } // Populate catch later
 
-
-    //    // Host a server on the local port 
-
-    //    //
-    //}
+        return false;
+    }
 
 
-}
 
 
-    public static List<PeerTable> GetUniquePeers(Peer Self, List<PeerTable> PeerList) => PeerList.Where(x => !(Self.Peers.Any(a => x.PeerId == a.PeerId) && x.PeerId != Self.PeerId)).ToList();
+    public static bool IsConnectedPeer()
+    {
+        return false;
+    }
+
+    public static bool IsKnownPeer(Guid SelfId, List<PeerTable> Peers, PeerTable newPeer)
+    {
+
+
+        return false;
+    }
+
+    public static IEnumerable<PeerTable> GetUniquePeers(Peer Self, IEnumerable<PeerTable> PeerList) => PeerList.Where(x => !(Self.Peers.Any(a => x.PeerId == a.PeerId) && x.PeerId != Self.PeerId)).ToList();
 }

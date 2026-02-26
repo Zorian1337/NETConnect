@@ -1,4 +1,5 @@
-﻿using NETConnect.Peers;
+﻿using NETConnect.Network;
+using NETConnect.Peers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,7 +42,7 @@ public class Multicast
 
         EndPoint = new IPEndPoint(this.MulticastAddress, Port);
         Client.JoinMulticastGroup(this.MulticastAddress, localIP);
-        Console.WriteLine($"Joined Multicast group [{this.MulticastAddress}:{Port}]");
+        //Console.WriteLine($"Joined Multicast group [{this.MulticastAddress}:{Port}]");
     }
 
     [Obsolete]
@@ -76,7 +77,7 @@ public class Multicast
 
         EndPoint = new IPEndPoint(this.MulticastAddress, Port);
         Client.JoinMulticastGroup(this.MulticastAddress);
-        Console.WriteLine($"Joined Multicast group [{this.MulticastAddress}:{Port}]");
+        //Console.WriteLine($"Joined Multicast group [{this.MulticastAddress}:{Port}]");
     }
 
     public void Wire(bool IsWire = true)
@@ -133,8 +134,11 @@ public class Multicast
         switch (Packet.Action)
         {
             case MulticastAction.Join:
+                // Remove any peers that exist multiple times somehow
+                Self.Peers = Self.Peers.Distinct().ToList();
+
                 // Add only peers that havent been discovered yet
-                if(Self.Peers.Any(x => x.PeerId == Packet.SenderId))
+                if (Self.Peers.Any(x => x.PeerId == Packet.SenderId) || Self.PeerId == Packet.SenderId)
                 {
                     //Console.WriteLine("Peer already disovered");
                     return;  
@@ -147,37 +151,39 @@ public class Multicast
 
 
                 // Create new client add it to client list
-                BaseTCPClient Client = new BaseTCPClient(Packet.SenderId);
+                var SelfPeer = Self;
+                BaseTCPClient Client = new BaseTCPClient(ref SelfPeer);
                 // After connecting to the newest peer who joined, share your list of peers for them to join (later only 1 will need to do this)
 
 
                 int Port = int.Parse(Addr[1]);
                 if (Client.TryConnect(Addr[0], Port))
                 {
-
                     PeerTable newPeer = new PeerTable(Packet.SenderId, Addr[0], Port)
                     {
                         Client = Client,
                         //IsLocal = true
                     };
 
+                    //if (Self.OperationMode == PeerState.Server) // This was allowing the server/client to connect to themselves
+                    //{
+                    //    PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port);
+                    //    // Send new peer old peer list (we wont have any peers right now)
+                    //    Client.Packer.SendPacket(myPeer.ToJSON().ToUTF8Byte(), Shared.Packet.PacketActionType.P2PInt);
+                    //}
+                    //else 
+                    //{
+                    //    PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port);
+                    //    // Send new peer old peer list (we wont have any peers right now)
+                    //    Client.Packer.SendPacket(Self.Peers.ToJSON().ToUTF8Byte(), Shared.Packet.PacketActionType.P2PInt);
+                    //}
 
-                    // Send new peer old peer list
-                    Client.Packer.SendPacket(Self.Peers.ToJSON().ToUTF8Byte());
+                    PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port);
+                    // Send new peer old peer list (we wont have any peers right now)
+                    Client.Packer.SendPacket(Self.Peers.ToArray().ToJSON().ToUTF8Byte(), Shared.Packet.PacketActionType.PeerJoin);
 
                     Self.Peers.Add(newPeer);
                 }
-                //Console.WriteLine($"I am {Self.TCPServer.Address}:{Self.TCPServer.Port} going to [{Addr[0]}:{Addr[1]}]");
-                // Reannounce self for new members
-                //Thread.Sleep(new Random().Next(100, 300));
-
-                //Self.Multicast.SendUTF8Message(Self.TCPServer.ServerAddress, MulticastAction.Join);
-
-                //if (SenderId.CompareTo(Packet.SenderId) < 0)
-                //{
-
-                //}
-
                 break;
         }
     }
