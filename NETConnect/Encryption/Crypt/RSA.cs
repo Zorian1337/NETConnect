@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 namespace NETConnect.Encryption.Crypt;
 
 
+
 public enum RSAKeySize : int
 {
     Weak = 1024,

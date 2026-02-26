@@ -33,15 +33,19 @@ public static class RSAExtensions
     {
         try
         {
-            using RSA rsa = RSA.Create();
+
+            Console.WriteLine($"KeyLevel: {PublicKey.GetRSASecurityLevel()}");
+            using RSA rsa = RSACrypt.Create(PublicKey.GetRSASecurityLevel());
             rsa.ImportSubjectPublicKeyInfo(PublicKey, out _);
 
-            RSAEncryptionPadding Padding;
-            switch (rsa.KeySize.GetRSASecurityLevel())
-            {
-                case RSAKeySize.Weak: Padding = RSAEncryptionPadding.OaepSHA1; Console.WriteLine("its picking weak"); break;
-                default: Padding = RSAEncryptionPadding.OaepSHA3_256; break;
-            }
+            //RSAEncryptionPadding Padding;
+            //switch (rsa.KeySize.GetRSASecurityLevel())
+            //{
+            //    case RSAKeySize.Weak: Padding = RSAEncryptionPadding.OaepSHA1; Console.WriteLine("its picking weak"); break;
+            //    default: Padding = RSAEncryptionPadding.OaepSHA3_256; break;
+            //}
+
+            RSAEncryptionPadding Padding = RSAEncryptionPadding.OaepSHA512;
 
             return rsa.Encrypt(Data, Padding);
         }
