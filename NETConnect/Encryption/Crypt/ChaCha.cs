@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 
 namespace NETConnect.Encryption.Crypt;
@@ -16,13 +17,26 @@ public class ChaCha
     public class ChaChaKeys
     {
         public ChaChaKeys() { }
+
+        [JsonIgnore]
+        public byte[] Key { get; set; }
         public byte[] nonce { get; set; }
         public byte[] tag { get; set; }
+
+        public ChaChaKeys(byte[] Key, byte[] nonce, byte[] tag)
+        {
+            this.Key = Key;
+            this.nonce = nonce;
+            this.tag = tag;
+        }
+
         public ChaChaKeys(byte[] nonce, byte[] tag)
         {
             this.nonce = nonce;
             this.tag = tag;
         }
+
+
     }
 
     public static byte[] Encrypt(byte[] Key, byte[] Data, out ChaChaKeys Keys)
@@ -50,7 +64,8 @@ public class ChaCha
 
         try
         {
-            byte[] EncryptedData = Array.Empty<byte>();
+            // Init data buffer or else chacha will cry
+            byte[] EncryptedData = new byte[data.Length];
             using ChaCha20Poly1305 ChaChaSlide = new ChaCha20Poly1305(Key);
             ChaChaSlide.Encrypt(nonce, data, EncryptedData, tag);
             return EncryptedData;
@@ -68,7 +83,7 @@ public class ChaCha
 
         try
         {
-            byte[] DecryptedData = Array.Empty<byte>(); 
+            byte[] DecryptedData = new byte[data.Length];
             using ChaCha20Poly1305 ChaChaSlide = new ChaCha20Poly1305(Key);
             ChaChaSlide.Decrypt(nonce, data, tag, DecryptedData);
             return DecryptedData;
