@@ -1,16 +1,33 @@
-﻿using System;
+﻿using NETConnect.Peers;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices.Swift;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NETConnect.Network.Info;
 
 public class NetworkStats
 {
+    public NetworkStats() {  }
+
+    public NetworkStats(ref Peer Self)
+    {
+        this.Self = Self;
+        this.PeerId = Self.PeerId;
+    }
+
+    public NetworkStats(Guid PeerId)
+    {
+        this.PeerId = PeerId;
+    }
+
     public Guid PeerId { get; set; }
 
-
+    [JsonIgnore]
+    public Peer Self { get; set; }
 
 
     // need to figure out a realiable way to record upload/download speed 
@@ -69,8 +86,8 @@ public class NetworkStats
 
 
     // Simple recording of the peer start time
-    public DateTime PeerStarted { get; set; }
+    public DateTime PeerStarted { get; set; } = DateTime.UtcNow;
 
-    public DateTime LastUpdated { get; set; }
+    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 
 }

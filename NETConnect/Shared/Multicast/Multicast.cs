@@ -1,10 +1,12 @@
 ﻿using NETConnect.Network;
 using NETConnect.Peers;
+using NETConnect.Shared.Packet.Headers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices.Swift;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -18,7 +20,7 @@ public class Multicast
     public int Port { get; private set; }   
     public IPEndPoint EndPoint { get; private set; }
     public CancellationTokenSource Token { get; private set; }
-    public Guid SenderId { get; private set; } = Guid.NewGuid();
+    public Guid SenderId { get; private set; } 
 
 
     public event Action<MulticastPacket> OnMulticastMessage;
@@ -26,6 +28,9 @@ public class Multicast
     public Multicast(ref Peer Self, string MulticastAddress = "235.69.4.20", int Port = 50420)
     {
         this.Self = Self;
+        SenderId = Self.PeerId;
+        Self.NetStats = new Network.Info.NetworkStats(ref Self);
+
         // Sets socket to allow for reuse of Address/Port
         Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         sock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
@@ -45,40 +50,7 @@ public class Multicast
         //Console.WriteLine($"Joined Multicast group [{this.MulticastAddress}:{Port}]");
     }
 
-    [Obsolete]
-    public Multicast(ref BaseTCPClient TCPClient, string MulticastAddress = "235.69.4.20", int Port = 50420)
-    {
-        // Sets reference to TCPClient, so it can join the other peers server upon its join
-        // Connect to Peer 1
-        //TcpClient client1 = new TcpClient();
-        //client1.Connect("192.168.1.10", 5000);
 
-        //// Connect to Peer 2
-        //TcpClient client2 = new TcpClient();
-        //client2.Connect("192.168.1.11", 5000);
-
-        //// Now you can read/write to each independently
-        //NetworkStream stream1 = client1.GetStream();
-        //NetworkStream stream2 = client2.GetStream();
-
-        // Sets socket to allow for reuse of Address/Port
-        Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        sock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        sock.Bind(new IPEndPoint(IPAddress.Any, Port));
-
-        Client = new UdpClient();
-        Client.Client = sock;
-        Client.Ttl = 1;
-        Token = new CancellationTokenSource();
-
-
-        this.MulticastAddress = IPAddress.Parse(MulticastAddress);
-        this.Port = Port;
-
-        EndPoint = new IPEndPoint(this.MulticastAddress, Port);
-        Client.JoinMulticastGroup(this.MulticastAddress);
-        //Console.WriteLine($"Joined Multicast group [{this.MulticastAddress}:{Port}]");
-    }
 
     public void Wire(bool IsWire = true)
     {
@@ -135,10 +107,10 @@ public class Multicast
         {
             case MulticastAction.Join:
                 // Remove any peers that exist multiple times somehow
-                Self.Peers = Self.Peers.Distinct().ToList();
+                Self.ConnectedPeers = Self.ConnectedPeers.Distinct().ToList();
 
                 // Add only peers that havent been discovered yet
-                if (Self.Peers.Any(x => x.PeerId == Packet.SenderId) || Self.PeerId == Packet.SenderId)
+                if (Self.ConnectedPeers.Any(x => x.PeerId == Packet.SenderId) || Self.PeerId == Packet.SenderId)
                 {
                     //Console.WriteLine("Peer already disovered");
                     return;  
@@ -159,6 +131,7 @@ public class Multicast
                 int Port = int.Parse(Addr[1]);
                 if (Client.TryConnect(Addr[0], Port))
                 {
+                    Console.WriteLine($"[Multicast] MyId: {Packet.SenderId}");
                     PeerTable newPeer = new PeerTable(Packet.SenderId, Addr[0], Port)
                     {
                         Client = Client,
@@ -178,11 +151,12 @@ public class Multicast
                     //    Client.Packer.SendPacket(Self.Peers.ToJSON().ToUTF8Byte(), Shared.Packet.PacketActionType.P2PInt);
                     //}
 
-                    PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port);
-                    // Send new peer old peer list (we wont have any peers right now)
-                    Client.Packer.SendPacket(Self.Peers.ToArray().ToJSON().ToUTF8Byte(), Shared.Packet.PacketActionType.PeerJoin);
 
-                    Self.Peers.Add(newPeer);
+                    //PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port); // THIS ORIGINALLY WASNT COMMENTED
+                    //Self.TCPServer.MyPeerTable = myPeer;
+                    // Send new peer old peer list (we wont have any peers right now)
+                    Client.Packer.SendUTF8Packet(Self.ConnectedPeers.ToArray().ToJSON(), PacketActionType.PeerJoin);
+                    Self.ConnectedPeers.Add(newPeer);
                 }
                 break;
         }

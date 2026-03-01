@@ -34,18 +34,10 @@ public static class RSAExtensions
         try
         {
 
-            Console.WriteLine($"KeyLevel: {PublicKey.GetRSASecurityLevel()}");
-            using RSA rsa = RSACrypt.Create(PublicKey.GetRSASecurityLevel());
+            using RSA rsa = CreatePKCS8(PublicKey, false);
             rsa.ImportSubjectPublicKeyInfo(PublicKey, out _);
 
-            //RSAEncryptionPadding Padding;
-            //switch (rsa.KeySize.GetRSASecurityLevel())
-            //{
-            //    case RSAKeySize.Weak: Padding = RSAEncryptionPadding.OaepSHA1; Console.WriteLine("its picking weak"); break;
-            //    default: Padding = RSAEncryptionPadding.OaepSHA3_256; break;
-            //}
-
-            RSAEncryptionPadding Padding = RSAEncryptionPadding.OaepSHA512;
+            RSAEncryptionPadding Padding = RSAEncryptionPadding.OaepSHA256;
 
             return rsa.Encrypt(Data, Padding);
         }
@@ -58,17 +50,9 @@ public static class RSAExtensions
     {
         try
         {
-            using RSA rsa = RSA.Create();
-            rsa.ImportPkcs8PrivateKey(PrivateKey, out _);
-            //rsa.ImportSubjectPublicKeyInfo(PublicKey, out _);
+            using RSA rsa = CreatePKCS8(PrivateKey, true);
 
-            RSAEncryptionPadding Padding;
-            switch (rsa.KeySize.GetRSASecurityLevel())
-            {
-                case RSAKeySize.Weak: Padding = RSAEncryptionPadding.OaepSHA1; break;
-                default: Padding = RSAEncryptionPadding.OaepSHA3_256; break;
-            }
-
+            RSAEncryptionPadding Padding = RSAEncryptionPadding.OaepSHA256;
             return rsa.Decrypt(Data, Padding);
         }
         catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine(Ex.ToString()); }

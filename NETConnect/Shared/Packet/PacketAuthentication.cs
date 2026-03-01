@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NETConnect.Shared.Packet.Headers;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +17,8 @@ public class PacketAuthentication
 
     public PacketEncryptionType EncryptionType {  get; set; }
     public byte[] KeyData { get; set; }
+
+    public byte[][] ExtraData { get; set; }
 
 
     // Settings from the server, that needs to be client synced

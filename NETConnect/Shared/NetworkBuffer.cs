@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 namespace NETConnect.Shared
 {
+    // Pretty sure this can now be removed
+
     // Creates an instance of a buffer per networking item
     public class NetworkBuffer
     {

@@ -1,4 +1,4 @@
-﻿using NETConnect.Shared.Packet;
+﻿using NETConnect.Shared.Packet.Headers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -34,8 +34,14 @@ namespace NETConnect.Shared
         /// Prevents connections to peers that have lower than 70% rep
         /// </summary>
         public float ReputationLimits = 70;
-        
-        public PacketEncryptionType EncryptionType {  get; set; }
+
+        /// <summary>
+        /// Signals whether or not this server supports encryption
+        /// </summary>
+        public bool IsEncryptionEnabled { get; set; } = true;
+        public PacketEncryptionType EncryptionType {  get; set; } = PacketEncryptionType.ChaCha20Poly1305;
+
+
 
 
     }

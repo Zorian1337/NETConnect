@@ -1,10 +1,13 @@
-﻿using NETConnect.Network.Info;
+﻿using Microsoft.VisualBasic;
+using NETConnect.Network.Info;
 using NETConnect.Peers;
 using NETConnect.Shared.Packet;
+using NETConnect.Shared.Packet.Headers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
+using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
@@ -18,6 +21,7 @@ public class HeartBeat
 
     public HeartBeat(ref Peer Self) => this.Self = Self;
 
+
     /// <summary>
     /// Beat is a confirmed response from the other connection
     /// </summary>
@@ -27,9 +31,11 @@ public class HeartBeat
     /// </summary>
     public DateTime LastPulseAt { get; set; } = DateTime.UtcNow;
 
-    public int TimeoutAfterInSeconds = 50; // default 90
+    public int TimeoutAfterInSeconds = 120; // default 90
     public int PulseAtInSeconds = 5; // default 30
     public int PulseCooldown = 10;
+
+    public bool FirstBeat { get; set; } = true;
 
 
     public TimeSpan LastLatency { get; set; }
@@ -37,7 +43,8 @@ public class HeartBeat
 
     public bool IsTimeout()
     {
-        if (DateTime.UtcNow >= LastBeatAt.AddSeconds(TimeoutAfterInSeconds)) return true;
+        if (FirstBeat) return false;
+        if (DateTime.UtcNow >= LastBeatAt.AddSeconds(TimeoutAfterInSeconds)) { Console.WriteLine("heartBeat Timed out"); return true; }
         else return false;
     }
 
@@ -49,9 +56,33 @@ public class HeartBeat
 
     }
 
+    [Obsolete]
     public bool TrySendHeartBeat(ref PacketHelper Helper, out bool IsDisconnected)
     {
         IsDisconnected = false;
+
+
+
+
+        DateTime now = DateTime.UtcNow;
+
+        // Check if Time for beat, and if its not a pulse cooldown
+        if(now >= LastBeatAt.AddSeconds(PulseAtInSeconds) && now >= LastPulseAt.AddSeconds(PulseCooldown)) //&& now >= LastPulseAt.AddSeconds(PulseCooldown)
+        {
+            //Console.WriteLine("First beat detected"); 
+            // Inits the beat after our TLS
+            if (FirstBeat) { SetLastBeat(); FirstBeat = false; } //return true;
+
+            // Attempts to prevent spam
+            //if (now >= LastPulseAt.AddSeconds(PulseCooldown)) return false;
+
+
+            //LastPulseAt = DateTime.UtcNow;
+
+
+            // Send heartBeat here
+            return SendPing(ref Helper, out IsDisconnected);    
+        }
 
         // Check for timeout or Disconnect
         if (Helper.Connection.IsGracefulShutdown() || IsTimeout())
@@ -60,20 +91,22 @@ public class HeartBeat
             return false; // Didnt send heartbeat, but IsDisconnected
         }
 
-        DateTime now = DateTime.UtcNow;
-
-        // Check if Time for beat, and if its not a pulse cooldown
-        if(now >= LastBeatAt.AddSeconds(PulseAtInSeconds)) //&& now >= LastPulseAt.AddSeconds(PulseCooldown)
-        {
-            // Send heartBeat here
-            int bytesSent = Helper.SendUTF8Packet("<PING>", PacketActionType.Ping);
-
-            if (bytesSent > 0) { SetLastBeat(); return true; }
-            else { IsDisconnected = true; return false; } // Failed to send ping, probably due to socket exception 
-            //LastPulseAt = DateTime.UtcNow;
-        }
 
         return false; // By default a heartBeat was not sent, and the connection was not disconnected
+    }
+
+    public bool SendPing(ref PacketHelper Helper, out bool IsDisconnected)
+    {
+        IsDisconnected = false;
+
+        // Allow sending data that is in the length of 0, and just send the packet header (those are control instructions)
+        int bytesSent = Helper.SendUTF8Packet("<PING>", PacketActionType.Ping);
+        Console.WriteLine($"Sending ping [{bytesSent}]");
+
+
+        if (bytesSent > 0) { SetLastBeat(); return true; }
+        else { IsDisconnected = true; return false; } // Failed to send ping, probably due to socket exception 
+                                                      //LastPulseAt = DateTime.UtcNow;
     }
 
 
@@ -102,9 +135,7 @@ public class HeartBeat
                 
             };
             Helper.SendUTF8Packet($"{Pinger.ToJSON()}", PacketActionType.Pong);
-            //Console.WriteLine("Server Sent Client <PING>");
-            //Helper.SendUTF8Packet("Ping Received, Handling Accordingly", PacketActionType.Data);
-            //OnDataReceived.Invoke(Data.Span);
+
         }
         else if (Header.PacketAction == PacketActionType.Pong)
         {
@@ -116,17 +147,9 @@ public class HeartBeat
                 // Sets the heartbeat speed
                 UpdateLatency(Ping.Latency);
 
-                PingLog.Add($"{Helper.} {Ping}ms");
-                Console.WriteLine(Ping.Latency.Milliseconds); //.ToString(@"hh\:mm\:ss\.fff")
+                PingLog.Add(Ping);
+                //Console.WriteLine($"{Ping.Latency.Milliseconds}ms");
             }
-
-
-            // Update the heartbeat 
-
-            //Console.WriteLine("Ponging");
-            //Helper.SendUTF8Packet("Server Sent Client <PONG>", PacketActionType.Data);
-            //Helper.SendUTF8Packet("Pong Received, Handling Accordingly", PacketActionType.Data);
-            //OnDataReceived.Invoke(Data.Span);
         }
     }
 

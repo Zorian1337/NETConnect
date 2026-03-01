@@ -1,4 +1,5 @@
-﻿using NETConnect.Shared.Packet;
+﻿using NETConnect.Network.Info;
+using NETConnect.Shared.Packet;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,18 +12,13 @@ namespace NETConnect.Peers
 {
     public class PeerTable
     {
+
+        [JsonIgnore]
+        public Peer Self { get; set; }  
         public Guid PeerId { get; set; }
-        public string Address { get; set; }
-        public int Port { get; set; }
-
-        // Add feature support for knownPeers and connectedPeers 
-
 
         [JsonIgnore]
         public BaseTCPClient Client { get; set; }
-
-
-        //public Socket Connection { get; private set; }
 
         /// <summary>
         /// Used for server side to get a direct line
@@ -31,18 +27,10 @@ namespace NETConnect.Peers
         public PacketHelper PacketHelper { get; set; }
 
         public bool IsLocal { get; set; }
+        public string Address { get; set; }
+        public int Port { get; set; }
 
-
-
-
-
-
-
-
-        //public NetworkStats 
-
-        public float Realiabilty { get; set; }
-
+        public NetworkStats NetStats { get; set; }
 
 
 
@@ -56,11 +44,22 @@ namespace NETConnect.Peers
 
         public PeerTable() { }
 
+        public PeerTable(ref Peer Self, string Address, int Port)
+        {
+            this.Self = Self;   
+            this.PeerId = Self.PeerId;   
+            this.Address = Address;
+            this.Port = Port;
+        }
+
         public PeerTable(Guid PeerId, string Address, int Port)
         {
             this.PeerId = PeerId;
             this.Address = Address;
             this.Port = Port;
+
+            this.NetStats = new NetworkStats(PeerId);
+            //Console.WriteLine(NetStats.ToJSON());
         }
 
 
@@ -71,6 +70,8 @@ namespace NETConnect.Peers
             this.PeerId = PeerId;
             this.Address = Address;
             this.Port = Port;
+
+            this.NetStats = new NetworkStats(PeerId);
         }
     }
 }

@@ -11,6 +11,7 @@ namespace NETConnect.Encryption;
 
 public class CryptUtils
 {
+
     /// <summary>
     /// Calculates the max length of a byte array for a given key size
     /// </summary>
