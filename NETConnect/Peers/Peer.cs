@@ -1,4 +1,5 @@
-﻿using NETConnect.Network.Info;
+﻿using NETConnect.Interfaces;
+using NETConnect.Network.Info;
 using NETConnect.Shared;
 using NETConnect.Shared.Multicast;
 using NETConnect.Shared.Packet.Headers;
@@ -21,7 +22,6 @@ public class Peer
     public Guid PeerId { get; set; } = Guid.NewGuid();
 
     public BaseTCPServer TCPServer { get; set; }
-
     public List<PeerTable> ConnectedPeers { get; set; } = new List<PeerTable>();
 
     public Multicast Multicast { get; set; }
@@ -81,7 +81,13 @@ public class Peer
 
         var Helper = ClientHandle.PacketHelper;
         PeerTable newPeer = new PeerTable(ref Helper, initPeer.PeerId, initPeer.Address, initPeer.Port);
+        newPeer.PacketHelper = ClientHandle.PacketHelper;
+
         ConnectedPeers.Add(newPeer);
+        TCPServer.Clients.Add(ClientHandle);
+
+        // Seeing if this makes it easier
+        TCPServer.InvokeOnPeerConnected(ClientHandle, initPeer);
     }
 
     public void AddPeers(ServerClientHandle ClientHandle, IEnumerable<PeerTable> initPeers, bool UseOriginalVersion = false)
@@ -111,10 +117,16 @@ public class Peer
                         // Add them to unique list
                         UniquePeers.Add(peer);
 
+                        peer.PacketHelper = ClientHandle.PacketHelper;
+
                         // Add them to current peer list
                         ConnectedPeers.Add(peer);
+                        TCPServer.Clients.Add(ClientHandle);
 
                         //Console.WriteLine("found new peer");
+
+                        // Seeing if this makes it easier
+                        TCPServer.InvokeOnPeerConnected(ClientHandle, peer);
                     }
                 }
 
@@ -127,10 +139,6 @@ public class Peer
             }
         }
     }
-
-
-
-
 }
 
 public static class PeerUtils

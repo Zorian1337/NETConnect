@@ -35,10 +35,16 @@ public class BaseTCPServer : BaseServerProperties
 
     public PeerTable MyPeerTable { get; set; }
 
+    // Server itself
     public event Action<Socket> OnClientConnected;
     public event Action<Socket> OnClientDisconnected;
     public event Action<Socket, PacketHelper> OnAuthenticationRequested;
     public event Action<ServerClientHandle, PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
+
+
+    // Peer related - this can probably hold the clienthandle and the peer side 
+    public event Action<ServerClientHandle, PeerTable> OnPeerConnected;
+
 
     public bool IsAuthenticating = false;
     public bool IsAuthenticated = false;
@@ -134,7 +140,7 @@ public class BaseTCPServer : BaseServerProperties
                     });
 
                     // Using this for informational purposes related to peers
-                    Task.Run(() => UpdatePeerDisplay());
+                    //Task.Run(() => UpdatePeerDisplay());
                 }
 
                 // Handles searching for clients in another thread...
@@ -381,7 +387,7 @@ public class BaseTCPServer : BaseServerProperties
 
         while (!ClientToken.IsCancellationRequested)
         {
-            Thread.Sleep(2000); // Handles client data at a certain time per loop
+            Thread.Sleep(5); // Handles client data at a certain time per loop
 
 
             // Continue until authentication is complete
@@ -583,7 +589,7 @@ public class BaseTCPServer : BaseServerProperties
         }
     }
 
-
+    public void InvokeOnPeerConnected(ServerClientHandle ClientHandle, PeerTable initPeer) => OnPeerConnected.Invoke(ClientHandle, initPeer);
 
     public void HandleDataReceived(ServerClientHandle Client, PacketHeader Header, ReadOnlySpan<byte> Data)
     {

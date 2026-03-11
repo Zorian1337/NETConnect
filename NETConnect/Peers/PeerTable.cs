@@ -30,6 +30,11 @@ namespace NETConnect.Peers
         public string Address { get; set; }
         public int Port { get; set; }
 
+        public string AddressPort
+        {
+            get => $"{Address}:{Port}";
+        }
+
         public NetworkStats NetStats { get; set; }
 
 
@@ -37,7 +42,7 @@ namespace NETConnect.Peers
 
 
 
-
+        //public PeerTable
 
 
 

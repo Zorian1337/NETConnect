@@ -32,7 +32,7 @@ public class HeartBeat
     public DateTime LastPulseAt { get; set; } = DateTime.UtcNow;
 
     public int TimeoutAfterInSeconds = 120; // default 90
-    public int PulseAtInSeconds = 5; // default 30
+    public int PulseAtInSeconds = 10; // default 30
     public int PulseCooldown = 10;
 
     public bool FirstBeat { get; set; } = true;

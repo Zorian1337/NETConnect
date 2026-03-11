@@ -14,7 +14,6 @@ namespace NETConnect.MyExtensions.Encryption;
 
 public static class RSAExtensions
 {
-
     public static RSAKeySize GetRSASecurityLevel(this int KeySize)
     {
         if (Enum.IsDefined(typeof(RSAKeySize), KeySize)) return (RSAKeySize)KeySize;

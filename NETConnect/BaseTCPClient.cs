@@ -44,7 +44,7 @@ public class BaseTCPClient
 
     public event Action<Socket, PacketHelper> OnAuthenticationRequested;
 
-    public event Action<PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
+    public event Action<PacketHelper, PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
 
 
     public bool IsAuthenticating = false;
@@ -287,7 +287,7 @@ public class BaseTCPClient
 
             while (!Token.IsCancellationRequested)
             {
-                Thread.Sleep(2000);
+                Thread.Sleep(5);
 
                 // Continue until authentication is complete
                 if (IsAuthenticating) continue;
@@ -338,9 +338,9 @@ public class BaseTCPClient
                         Packet = Decrypted;
                         //Console.WriteLine($"[Client] [{Header.PacketAction}] [Auto-Decrypted]: {Decrypted.ToUTF8String()}");
                         //Console.WriteLine($"[Client] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
-                        OnDataReceived.Invoke(Header, Packet);
+                        OnDataReceived.Invoke(Packer, Header, Packet);
                     }
-                    else if (Header.PacketEncryptionType == PacketEncryptionType.NONE) {  OnDataReceived.Invoke(Header, Packet); }
+                    else if (Header.PacketEncryptionType == PacketEncryptionType.NONE) {  OnDataReceived.Invoke(Packer, Header, Packet); }
 
 
                 }
@@ -548,7 +548,7 @@ public class BaseTCPClient
         }
     }
 
-    public void HandleOnDataReceived(PacketHeader Header, ReadOnlySpan<byte> Data)
+    public void HandleOnDataReceived(PacketHelper Packer, PacketHeader Header, ReadOnlySpan<byte> Data)
     {
         byte[] DATA = Data.ToArray();
 
