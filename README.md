@@ -1,15 +1,68 @@
-# Welcome to our NETConnect project!
-This project is purely for fun and educational purposes with a twist of usefulness.
+<div align="center">
+  
+  # 🌐 NETConnect
+  ### *The Backbone of Decentralized P2P Connections*
+  
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/yourlink)
+  [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+  [![C++](https://img.shields.io/badge/C++-20-00599C?logo=cplusplus&logoColor=white)](https://isocpp.org/)
+  [![PS4](https://img.shields.io/badge/PS4-Development-003791?logo=playstation&logoColor=white)](https://www.playstation.com/)
+  [![Commits](https://img.shields.io/github/last-commit/Zorian1337/NETConnect)](https://github.com/Zorian1337/NETConnect/commits)
+  
+  **⚠️ First Major Project - Built with passion, learning, and community! ⚠️**
+  
+  [Report Bug](https://github.com/Zorian1337/NETConnect/issues) · [Request Feature](https://github.com/Zorian1337/NETConnect/issues) · [Join Discussion](https://github.com/Zorian1337/NETConnect/discussions)
+  
+</div>
 
-  Ever want to always be connected to a server? to never have any downtime to switch between hosts with ease, To message securely. Well thats what this is for.
+---
 
-# Whats the end goal?
-The end goal is to create a global application that can be the back bone of P2P connections, That can and will be used to host everything and anything, even if you arent interested in it, Creating subcommunities within each nodeset, while the only interaction with others is just to pass data from point A to B.
+## 📋 Table of Contents
+- [🎯 Vision](#-vision)
+- [✨ Features](#-features)
+- [📁 Project Structure](#-project-structure)
+- [🚀 Quick Start](#-quick-start)
+- [📱 Platform Support](#-platform-support)
+- [🔧 Technical Stack](#-technical-stack)
+- [🏗️ Architecture](#️-architecture)
+- [🤝 Contributing](#-contributing)
+- [📝 License](#-license)
 
-# What are your current features?
-Currently we only have multicast setup on everything except the PS4 version. C# version includes a more functional version being broadcasting locally and then connecting to a TCP server then securing communications using RSA, and ChaCha-Poly. 
+---
 
-The plan is to have this project support as many platforms as possible, but dealing with multiple connections in one application and handling it correctly is tricky, especially on each programming language.
+## 🎯 Vision
 
-# Why are you creating this project?
-So in all honestly I'd say that having a project like this is really cool to have and that P2P is in my opinion the best way to host servers, relying on a single point of failure isn't the best, I want to in the future link this project up with as much as I possibly can, Using game modding and any other projects as stepping stones to fine tune this in a real world setting
+> *"Creating a global application that serves as the backbone of P2P connections, enabling communities to form within nodesets while seamlessly passing data from point A to B."*
+
+NETConnect aims to revolutionize how we think about hosting servers by eliminating single points of failure. Whether you're hosting games, sharing files, or building communities, NETConnect provides the infrastructure for true peer-to-peer connectivity.
+
+### Why NETConnect?
+- **🔄 Truly Decentralized** - No central servers, no single point of failure
+- **🌍 Community-Driven** - Subcommunities within each nodeset
+- **🔒 Privacy-Focused** - End-to-end encryption with RSA + ChaCha20-Poly1305
+- **📱 Cross-Platform** - From PS4 to PC, connect everywhere
+- **🎮 Gaming First** - Built with game modding and real-world testing in mind
+
+---
+
+## ✨ Features
+
+<div align="center">
+
+| Feature | C# (.NET 9) | C++ (Windows) | PS4 | Description |
+|---------|:-----------:|:-------------:|:---:|-------------|
+| **Multicast Discovery** | ✅ Complete | 👂 Can Read | ❓ Unknown | Automatic peer discovery on local networks |
+| **TCP Server/Client** | ✅ Complete | 🚧 WIP | 🚧 WIP | Reliable connection establishment |
+| **RSA Encryption** | ✅ Complete | ⏳ Planned | ⏳ Planned | Secure key exchange |
+| **ChaCha20-Poly1305** | ✅ Complete | ⏳ Planned | ⏳ Planned | High-performance encryption |
+| **Event System** | ✅ Complete | ✅ Complete | ✅ Complete | C#-style events across all platforms |
+| **GUI Interface** | ✅ Complete | ⏳ Planned | ❌ N/A | User-friendly desktop interface |
+
+</div>
+
+### 🎯 Recent Milestone
+> **March 2, 2026:** C# version supports full multicast announcement and TCP joining. Peers can discover each other and establish secure connections automatically.
+
+---
+
