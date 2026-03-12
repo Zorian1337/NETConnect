@@ -31,6 +31,8 @@ public class Multicast
         SenderId = Self.PeerId;
         Self.NetStats = new Network.Info.NetworkStats(ref Self);
 
+        //Console.WriteLine($"[CONSTRUCT] MySenderID: {SenderId}");
+
         // Sets socket to allow for reuse of Address/Port
         Socket sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         sock.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
@@ -109,6 +111,9 @@ public class Multicast
                 // Remove any peers that exist multiple times somehow
                 Self.ConnectedPeers = Self.ConnectedPeers.Distinct().ToList();
 
+
+                //Console.WriteLine($"[SELF] MySenderId: {Self.PeerId}, PacketSenderId: {Packet.SenderId}");
+
                 // Add only peers that havent been discovered yet
                 if (Self.ConnectedPeers.Any(x => x.PeerId == Packet.SenderId) || Self.PeerId == Packet.SenderId)
                 {
@@ -131,7 +136,7 @@ public class Multicast
                 int Port = int.Parse(Addr[1]);
                 if (Client.TryConnect(Addr[0], Port))
                 {
-                    Console.WriteLine($"[Multicast] MyId: {Packet.SenderId}");
+                    //Console.WriteLine($"[Multicast] ClientJoinId: {Packet.SenderId}");
                     PeerTable newPeer = new PeerTable(Packet.SenderId, Addr[0], Port)
                     {
                         Client = Client,
@@ -174,12 +179,20 @@ public class Multicast
 
     public void SendMessage(byte[] Message, MulticastAction Action)
     {
+        //Console.WriteLine($"sent from : {SenderId}");
         MulticastPacket packet = new MulticastPacket(SenderId, Message, Action);
         string JSON = System.Text.Json.JsonSerializer.Serialize(packet);
+
+        //Console.WriteLine(JSON);
 
         byte[] Data = JSON.ToUTF8Byte();
         Client.Send(Data, Data.Length, EndPoint);
     }
 
-    public void SendUTF8Message(string UTF8Message, MulticastAction Action) => SendMessage(UTF8Message.ToUTF8Byte(), Action);
+    public void SendUTF8Message(string UTF8Message, MulticastAction Action)
+    {
+
+        //Console.WriteLine($"Multicast Message: {UTF8Message}");
+        SendMessage(UTF8Message.ToUTF8Byte(), Action);
+    }
 }

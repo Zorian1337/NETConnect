@@ -19,10 +19,10 @@ public class MulticastPacket
     public MulticastAction Action { get; set; }
 
 
-    public MulticastPacket(Guid senderId, byte[] data, MulticastAction action)
+    public MulticastPacket(Guid SenderId, byte[] data, MulticastAction action)
     {
-        SenderId = senderId;
-        Data = data;
-        Action = action;
+        this.SenderId = SenderId;
+        this.Data = data;
+        this.Action = action;
     }
 }
