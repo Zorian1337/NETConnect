@@ -66,3 +66,6 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 
 ---
 
+![Feature Demo - Multicast + Encryption in action](https://i.imgur.com/mtknwH5.gif)
+*Watch multicast discovery and encrypted communication in real-time*
+
