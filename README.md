@@ -21,13 +21,13 @@
 ## 📋 Table of Contents
 - [🎯 Vision](#-vision)
 - [✨ Features](#-features)
-- [📁 Project Structure](#-project-structure)
-- [🚀 Quick Start](#-quick-start)
-- [📱 Platform Support](#-platform-support)
-- [🔧 Technical Stack](#-technical-stack)
-- [🏗️ Architecture](#️-architecture)
-- [🤝 Contributing](#-contributing)
-- [📝 License](#-license)
+- [📁 Project Structure](#-project-structure) 🚧
+- [🚀 Quick Start](#-quick-start) 🚧
+- [📱 Platform Support](#-platform-support) 🚧
+- [🔧 Technical Stack](#-technical-stack) 🚧
+- [🏗️ Architecture](#️-architecture) 🚧
+- [🤝 Contributing](#-contributing) 🚧
+- [📝 License](#-license) 🚧
 
 ---
 
@@ -50,15 +50,13 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 
 <div align="center">
 
-| Feature | C# (.NET 9) | C++ (Windows) | PS4 | Description |
+| Feature | C# (.NET 9) | C++11 (Windows) | C++11 (PS4) | Description |
 |---------|:-----------:|:-------------:|:---:|-------------|
 | **Multicast Discovery** | ✅ Complete | 👂 Can Read | ❓ Unknown | Automatic peer discovery on local networks |
 | **TCP Server/Client** | ✅ Complete | 🚧 WIP | 🚧 WIP | Reliable connection establishment |
 | **RSA Encryption** | ✅ Complete | ⏳ Planned | ⏳ Planned | Secure key exchange |
 | **ChaCha20-Poly1305** | ✅ Complete | ⏳ Planned | ⏳ Planned | High-performance encryption |
-| **Event System** | ✅ Complete | ✅ Complete | ✅ Complete | C#-style events across all platforms |
-| **GUI Interface** | ✅ Complete | ⏳ Planned | ❌ N/A | User-friendly desktop interface |
-
+| **OpenDHT**         | ⏳ Planned | ⏳ Planned | ⏳ Planned | Internet-scale peer discovery |
 </div>
 
 ### 🎯 Recent Milestone
@@ -66,6 +64,6 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 
 ---
 
-![Feature Demo - Multicast + Encryption in action](https://i.imgur.com/mtknwH5.gif)
+![Feature Demo - Multicast + Encryption in action](https://i.imgur.com/A7v207M.gif)
 *Watch multicast discovery and encrypted communication in real-time*
 
