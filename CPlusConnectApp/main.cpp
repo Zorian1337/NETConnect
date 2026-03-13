@@ -11,7 +11,7 @@ int main() {
 
 	//std::cout << "Hello World" << std::endl;
 
-	printf("C++ CPPConnect\n");
+	printf("C++ NETConnect\n");
 
 	std::cin.get();
 
