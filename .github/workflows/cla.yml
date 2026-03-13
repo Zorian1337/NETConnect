@@ -26,6 +26,5 @@ jobs:
         with:
           path-to-signatures: 'signatures/version1/cla.json'
           path-to-document: 'https://github.com/Zorian1337/NETConnect/blob/main/CLA.md'
-          # Using 'master' since that's your default branch
-          branch: 'master'
+          branch: 'signatures'
           allowlist: dependabot[bot],github-actions[bot]
