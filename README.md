@@ -3,7 +3,7 @@
   # 🌐 NETConnect
   ### *The Backbone of Decentralized P2P Connections*
   
-  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
   [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/jqHq6C7HQG)
   [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
   [![C++11](https://img.shields.io/badge/Standard-C++11-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/11)
