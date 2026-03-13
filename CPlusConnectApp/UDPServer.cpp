@@ -10,14 +10,7 @@
 #pragma comment(lib, "Ws2_32.lib")
 
 
-//bool GetSocket(SOCKET &sock) {
-//
-//
-//}
-
-
-
-bool UDPServer::StartMulticastServer(const char* IP, int Port) {
+bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& multicastAddr) {
     // INIT winsock
     WSADATA wsa;
 
@@ -74,6 +67,12 @@ bool UDPServer::StartMulticastServer(const char* IP, int Port) {
         closesocket(sock);
         return false;
     }
+
+    // Stores multicast address 
+    memset(&multicastAddr, 0, sizeof(multicastAddr));
+    multicastAddr.sin_family = AF_INET;
+    multicastAddr.sin_port = htons(Port);
+    multicastAddr.sin_addr.S_un.S_addr = addr.S_un.S_addr;
 
     IsServerRunning = true;
 
@@ -202,14 +201,14 @@ int UDPServer::ReceiveUDPData(SOCKET sock, char* buffer, int bufferSize, UDPClie
     struct sockaddr_in clientAddr;
     socklen_t addrLen = sizeof(clientAddr);
 
-    struct sockaddr* addr = (struct sockaddr*)&clientAddr;
-    int bytesRead = recvfrom(sock, buffer, bufferSize, 0, addr, &addrLen);
+    //struct sockaddr* addr = (struct sockaddr*)&clientAddr;
+    int bytesRead = recvfrom(sock, buffer, bufferSize, 0, (struct sockaddr*)&clientAddr, &addrLen);
 
     if (bytesRead > 0) {
         // Corrects network order so we can read the IP and port
         inet_ntop(AF_INET, &clientAddr.sin_addr, client.IP, 16);
         client.Port = ntohs(clientAddr.sin_port);
-        client.addr = addr;
+        client.addr = clientAddr;
     }
 
     return bytesRead;
