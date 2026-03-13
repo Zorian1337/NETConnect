@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PS4ConnectLib", "PS4NETConn
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PS4ConnectApp", "PS4ConnectApp\PS4ConnectApp.vcxproj", "{4F65380E-60A3-4BB4-9EAB-52F15ABD41D8}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CPlusConnectApp", "CPlusConnectApp\CPlusConnectApp.vcxproj", "{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -67,6 +69,14 @@ Global
 		{4F65380E-60A3-4BB4-9EAB-52F15ABD41D8}.Release|Any CPU.Build.0 = Release|x64
 		{4F65380E-60A3-4BB4-9EAB-52F15ABD41D8}.Release|x64.ActiveCfg = Release|x64
 		{4F65380E-60A3-4BB4-9EAB-52F15ABD41D8}.Release|x64.Build.0 = Release|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Debug|Any CPU.Build.0 = Debug|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Debug|x64.ActiveCfg = Debug|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Debug|x64.Build.0 = Debug|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Release|Any CPU.ActiveCfg = Release|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Release|Any CPU.Build.0 = Release|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Release|x64.ActiveCfg = Release|x64
+		{FDD7823B-C84E-4BB4-A42B-0F1B4116A5D8}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
