@@ -59,8 +59,11 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 | **OpenDHT**         | ⏳ Planned | ⏳ Planned | ⏳ Planned | Internet-scale peer discovery |
 </div>
 
+### 🚧 Known Challenges
+- **Unified Peer Control**: Managing both client and server connections as one cohesive unit. Open to suggestions!
+
 ### 🎯 Recent Milestone
-> **March 2, 2026:** C# version supports full multicast announcement and TCP joining. Peers can discover each other and establish secure connections automatically.
+- **March 2, 2026:** C# version supports full multicast announcement and TCP joining. Peers can discover each other and establish secure connections automatically.
 
 ---
 
