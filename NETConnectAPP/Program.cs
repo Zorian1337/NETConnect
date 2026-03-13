@@ -23,6 +23,8 @@ namespace NETConnectAPP
             //byte[] decrypted = Encrypted.DecryptRSA(Keys.PrivateKey);
             //Console.WriteLine(decrypted);
 
+
+            // SECOND BRANCH PUSH TEST!
             Console.WriteLine("C# NETConnect");
             Console.ReadKey();
 
