@@ -24,7 +24,7 @@ namespace NETConnectAPP
             //Console.WriteLine(decrypted);
 
 
-            // FIRST BRANCH PUSH TEST!
+            // SECOND BRANCH PUSH TEST!
             Console.WriteLine("C# NETConnect");
             Console.ReadKey();
 
