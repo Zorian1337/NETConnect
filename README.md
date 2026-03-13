@@ -19,7 +19,7 @@
 ---
 
 ## 📋 Table of Contents
-- [🎯 Vision](#-vision)
+- [🎯 Vision](#-vision-cla-test)
 - [✨ Features](#-features)
 - [📁 Project Structure](#-project-structure) 🚧
 - [🚀 Quick Start](#-quick-start) 🚧
