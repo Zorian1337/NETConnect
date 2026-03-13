@@ -14,21 +14,34 @@
 class Multicast
 {
 public:
-	xg::Guid SenderId;
+	xg::Guid SenderId; // Needs to defined per platform in preprocessers (current: GUID_WINDOWS=1) 
 	UDPServer Server;
+	struct sockaddr_in multicastAddr;
+
+	Multicast() {
+		SenderId = xg::newGuid();
+	}
+
 
 	// Make sure this signature matches your Event exactly
-	static void OnDataReceived(UDPClient& Client, std::vector<uint8_t>& data) {
+	void OnDataReceived(UDPClient& Client, std::vector<uint8_t>& data) {
+		printf("%s received ->\n	%s\n", SenderId.str().c_str(), UTF8Helper::ToString(data).c_str());
 
 		// Attempt to parse from MulticastPacket as this is a Multicast, so all data should be in this form anyway.
 		MulticastPacket packet;
 		if (!MulticastPacket::TryFromJson(UTF8Helper::ToString(data), packet)) {
-			printf("packet failed to be read\n");
+			//printf("packet failed to be read\n");
 			return;
 		}
 
+		// Ignore packets from self
+		if (SenderId == packet.SenderId) return;
+
+
 		//printf("Packet: %s\n", packet.ToJson().c_str());
 		//printf("data received as a test\n");
+
+		return; // blocked for debugging
 
 		printf("[%s] -> sent packet data\n", packet.SenderId.str().c_str());
 
@@ -65,9 +78,22 @@ public:
 		}
 	}
 
+	int SentToAll(const std::string Message) {
+		return Server.SendTo((struct sockaddr*)&multicastAddr, Message.c_str());
+	}
+
 	bool StartMulticastServer(const char* IP, int Port) {
 		// Wire on data received
-		Server.OnUDPDataReceived += OnDataReceived;
-		return Server.StartMulticastServer(IP, Port);
+		Server.OnUDPDataReceived.Subscribe(this, &Multicast::OnDataReceived);
+
+		//SenderId = xg::newGuid();
+
+
+		bool IsStarted = Server.StartMulticastServer(IP, Port, multicastAddr);
+
+		if (IsStarted) {
+			int bytesSent = SentToAll("THIS IS A TEST!");
+		}
+		return IsStarted;
 	}
 };
