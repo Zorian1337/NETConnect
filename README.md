@@ -6,7 +6,7 @@
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/yourlink)
   [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-  [![C++](https://img.shields.io/badge/C++-20-00599C?logo=cplusplus&logoColor=white)](https://isocpp.org/)
+  [![C++11](https://img.shields.io/badge/Standard-C++11-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/11)
   [![PS4](https://img.shields.io/badge/PS4-Development-003791?logo=playstation&logoColor=white)](https://www.playstation.com/)
   [![Commits](https://img.shields.io/github/last-commit/Zorian1337/NETConnect)](https://github.com/Zorian1337/NETConnect/commits)
   
