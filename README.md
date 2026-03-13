@@ -3,11 +3,11 @@
   # 🌐 NETConnect
   ### *The Backbone of Decentralized P2P Connections*
   
-  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-  [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/yourlink)
+  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+  [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/jqHq6C7HQG)
   [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-  [![C++](https://img.shields.io/badge/C++-20-00599C?logo=cplusplus&logoColor=white)](https://isocpp.org/)
-  [![PS4](https://img.shields.io/badge/PS4-Development-003791?logo=playstation&logoColor=white)](https://www.playstation.com/)
+  [![C++11](https://img.shields.io/badge/Standard-C++11-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/11)
+  [![PS4](https://img.shields.io/badge/PS4-Development-003791?logo=playstation&logoColor=white)](https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain)
   [![Commits](https://img.shields.io/github/last-commit/Zorian1337/NETConnect)](https://github.com/Zorian1337/NETConnect/commits)
   
   **⚠️ First Major Project - Built with passion, learning, and community! ⚠️**
@@ -21,13 +21,13 @@
 ## 📋 Table of Contents
 - [🎯 Vision](#-vision)
 - [✨ Features](#-features)
-- [📁 Project Structure](#-project-structure)
-- [🚀 Quick Start](#-quick-start)
-- [📱 Platform Support](#-platform-support)
-- [🔧 Technical Stack](#-technical-stack)
-- [🏗️ Architecture](#️-architecture)
-- [🤝 Contributing](#-contributing)
-- [📝 License](#-license)
+- [📁 Project Structure](#-project-structure) 🚧
+- [🚀 Quick Start](#-quick-start) 🚧
+- [📱 Platform Support](#-platform-support) 🚧
+- [🔧 Technical Stack](#-technical-stack) 🚧
+- [🏗️ Architecture](#️-architecture) 🚧
+- [🤝 Contributing](#-contributing) 🚧
+- [📝 License](#-license) 🚧
 
 ---
 
@@ -50,22 +50,23 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 
 <div align="center">
 
-| Feature | C# (.NET 9) | C++ (Windows) | PS4 | Description |
+| Feature | C# (.NET 9) | C++11 (Windows) | C++11 (PS4) | Description |
 |---------|:-----------:|:-------------:|:---:|-------------|
 | **Multicast Discovery** | ✅ Complete | 👂 Can Read | ❓ Unknown | Automatic peer discovery on local networks |
-| **TCP Server/Client** | ✅ Complete | 🚧 WIP | 🚧 WIP | Reliable connection establishment |
+| **TCP Server/Client** | ✅ Complete | ⏳ Planned | ⏳ Planned | Reliable connection establishment |
 | **RSA Encryption** | ✅ Complete | ⏳ Planned | ⏳ Planned | Secure key exchange |
 | **ChaCha20-Poly1305** | ✅ Complete | ⏳ Planned | ⏳ Planned | High-performance encryption |
-| **Event System** | ✅ Complete | ✅ Complete | ✅ Complete | C#-style events across all platforms |
-| **GUI Interface** | ✅ Complete | ⏳ Planned | ❌ N/A | User-friendly desktop interface |
-
+| **OpenDHT**         | ⏳ Planned | ⏳ Planned | ⏳ Planned | Internet-scale peer discovery |
 </div>
 
+### 🚧 Known Challenges
+- **Unified Peer Control**: Managing both client and server connections as one cohesive unit. Open to suggestions!
+
 ### 🎯 Recent Milestone
-> **March 2, 2026:** C# version supports full multicast announcement and TCP joining. Peers can discover each other and establish secure connections automatically.
+- **March 2, 2026:** C# version supports full multicast announcement and TCP joining. Peers can discover each other and establish secure connections automatically.
 
 ---
 
-![Feature Demo - Multicast + Encryption in action](https://i.imgur.com/mtknwH5.gif)
+![Feature Demo - Multicast + Encryption in action](https://i.imgur.com/A7v207M.gif)
 *Watch multicast discovery and encrypted communication in real-time*
 
