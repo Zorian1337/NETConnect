@@ -11,6 +11,10 @@ int main() {
 
 	//std::cout << "Hello World" << std::endl;
 
+	printf("C++ CPPConnect\n");
+
+	std::cin.get();
+
 	Multicast Server;
 	if (Server.StartMulticastServer("235.69.4.20", 50420)) {
 		//std::cout << "server started" << std::endl;

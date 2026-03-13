@@ -22,7 +22,10 @@ namespace NETConnectAPP
             //Console.WriteLine(Convert.ToBase64String(Encrypted));
             //byte[] decrypted = Encrypted.DecryptRSA(Keys.PrivateKey);
             //Console.WriteLine(decrypted);
-            
+
+            Console.WriteLine("C# NETConnect");
+            Console.ReadKey();
+
             Peer peer = new Peer(IPAddress.Any, 0);
 
             while (true)
