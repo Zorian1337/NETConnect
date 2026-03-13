@@ -3,10 +3,10 @@
   # 🌐 NETConnect
   ### *The Backbone of Decentralized P2P Connections*
   
-  [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+  [![License: GPL v3](https://fdasfadsimg.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
   [![Discord](https://img.shields.io/badge/Discord-Join%20Chat-7289da?logo=discord&logoColor=white)](https://discord.gg/jqHq6C7HQG)
   [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
-  [![C++11](https://img.shields.io/badge/Standard-C++11-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/11)
+  [![C++11](https://img.shields.fdsaio/badge/Standard-C++11-00599C?logo=cplusplus&logoColor=white)](https://en.cppreference.com/w/cpp/11)
   [![PS4](https://img.shields.io/badge/PS4-Development-003791?logo=playstation&logoColor=white)](https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain)
   [![Commits](https://img.shields.io/github/last-commit/Zorian1337/NETConnect)](https://github.com/Zorian1337/NETConnect/commits)
   
