@@ -53,7 +53,7 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 | Feature | C# (.NET 9) | C++11 (Windows) | C++11 (PS4) | Description |
 |---------|:-----------:|:-------------:|:---:|-------------|
 | **Multicast Discovery** | ✅ Complete | 👂 Can Read | ❓ Unknown | Automatic peer discovery on local networks |
-| **TCP Server/Client** | ✅ Complete | 🚧 WIP | 🚧 WIP | Reliable connection establishment |
+| **TCP Server/Client** | ✅ Complete | ⏳ Planned | ⏳ Planned | Reliable connection establishment |
 | **RSA Encryption** | ✅ Complete | ⏳ Planned | ⏳ Planned | Secure key exchange |
 | **ChaCha20-Poly1305** | ✅ Complete | ⏳ Planned | ⏳ Planned | High-performance encryption |
 | **OpenDHT**         | ⏳ Planned | ⏳ Planned | ⏳ Planned | Internet-scale peer discovery |
