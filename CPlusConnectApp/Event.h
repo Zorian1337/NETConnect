@@ -22,6 +22,13 @@ public:
 		listeners.push_back(cb);
 	}
 
+	template<typename T>
+	void Subscribe(T* instance, void (T::* memberFunction)(Args...)) {
+		listeners.push_back([instance, memberFunction](Args... args) {
+			(instance->*memberFunction)(args...);
+			});
+	}
+
 	// Doesnt support removal of lambdas
 	void operator-=(Callback cb) {
 		listeners.erase(
