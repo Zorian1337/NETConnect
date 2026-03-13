@@ -1,40 +1,34 @@
 #include "UDPServer.h"
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
+//#include <winsock2.h> -included in _Network.h
+//#include <ws2tcpip.h> -included in _Network.h
+//#include "NetUtil.h" - included in _Network.h
+//#pragma comment(lib, "Ws2_32.lib") - included in _Network.h
+
+#include "_Network.h" // Includes (winsock, ws2tcpip, NetUtil, or any other net headers)
+
 #include <iostream>
 #include <thread>
 #include "MulticastPacket.h"
 #include "UTF8Helper.h"
 
-#pragma comment(lib, "Ws2_32.lib")
+
+
+
 
 
 bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& multicastAddr) {
-    // INIT winsock
-    WSADATA wsa;
-
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-    {
-        std::cout << "WSAStartup failed\n";
-        return false;
-    }
-
     struct in_addr addr;
-    if (inet_pton(AF_INET, IP, &addr) != 1) return false;
-
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-
-    if (sock == INVALID_SOCKET) {
-
+	if (!NetUtil::GetIPv4Address(IP, addr)) return false; // Testing NetUtil for getting IPv4 address, should be able to replace the inet_pton call with this
+    
+	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) { // Attempt to use NetUtil for creating socket, should be able to replace the socket call with this
         std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
         return false;
     }
 
     // Allow address reuse for multiple listeners!
     BOOL reuse = TRUE;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-        (const char*)&reuse, sizeof(reuse)) == SOCKET_ERROR) {
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) == SOCKET_ERROR) {
         std::cout << "Failed to set SO_REUSEADDR: " << WSAGetLastError() << std::endl;
     }
 
@@ -87,22 +81,10 @@ bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& mult
 }
 
 bool UDPServer::StartServer(const char* IP, int Port) {
-    // INIT winsock
-    WSADATA wsa;
-
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-    {
-        std::cout << "WSAStartup failed\n";
-        return false;
-    }
-
     struct in_addr addr;
-    if (inet_pton(AF_INET, IP, &addr) != 1) return false;
+    if (!NetUtil::GetIPv4Address(IP, addr)) return false;
 
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-
-    if (sock == INVALID_SOCKET) {
-
+    if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) {
         std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
         return false;
     }
@@ -130,20 +112,7 @@ bool UDPServer::StartServer(const char* IP, int Port) {
 }
 
 bool UDPServer::StartServer(int Port) {
-
-    // INIT winsock
-    WSADATA wsa;
-
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-    {
-        std::cout << "WSAStartup failed\n";
-        return false;
-    }
-
-    sock = socket(AF_INET, SOCK_DGRAM, 0);
-
-    if (sock == INVALID_SOCKET) {
-    
+    if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) {
         std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
         return false;
     }
@@ -184,14 +153,6 @@ void UDPServer::HandleListening(SOCKET sock) {
             // Packages utf8 data for event handling
             std::vector<uint8_t> data(Buffer, Buffer + bytesRead);
             OnUDPDataReceived.Invoke(client, data);
-
-            //MulticastPacket packet;
-            //if (!MulticastPacket::TryFromJson(UTF8Helper::ToString(data), packet)) {
-            //    printf("packet failed to be read\n");
-            //    continue;
-            //}
-
-            //printf("Packet: %s\n", packet.ToJson().c_str());
         }
     }
 }

@@ -1,18 +1,18 @@
 #pragma once
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
+//#include <winsock2.h> -included in _Network.h
+//#include <ws2tcpip.h> -included in _Network.h
+//#pragma comment(lib, "Ws2_32.lib") -included in _Network.h
+#include "_Network.h" // Includes (winsock, ws2tcpip, NetUtil, or any other net headers)
+
 #include <iostream>
-
-#pragma comment(lib, "Ws2_32.lib")
-
 #include <atomic>
 #include "Event.h"
 
 
 class UDPClient {
 public:
-    SOCKET sock;
+    SocketHandler sock;
     char IP[16];
     int Port;
     //sockaddr* addr;
@@ -46,7 +46,7 @@ public:
 
 private:
 
-    SOCKET sock = INVALID_SOCKET;
+    SocketHandler sock = INVALID_SOCKET;
     sockaddr_in serverAddr{};
     void HandleListening(SOCKET sock);
     int ReceiveUDPData(SOCKET sock, char* buffer, int bufferSize, UDPClient& client);
