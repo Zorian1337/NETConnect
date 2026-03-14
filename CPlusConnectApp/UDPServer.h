@@ -48,6 +48,6 @@ private:
 
     SocketHandler sock = INVALID_SOCKET;
     sockaddr_in serverAddr{};
-    void HandleListening(SOCKET sock);
-    int ReceiveUDPData(SOCKET sock, char* buffer, int bufferSize, UDPClient& client);
+    void HandleListening(SocketHandler sock);
+    int ReceiveUDPData(SocketHandler sock, char* buffer, int bufferSize, UDPClient& client);
 };
