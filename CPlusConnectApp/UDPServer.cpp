@@ -142,7 +142,7 @@ bool UDPServer::StartServer(int Port) {
     return true;
 }
 
-void UDPServer::HandleListening(SOCKET sock) {
+void UDPServer::HandleListening(SocketHandler sock) {
     // Reusables
     UDPClient client;
     int bytesRead;
@@ -160,7 +160,7 @@ void UDPServer::HandleListening(SOCKET sock) {
     }
 }
 
-int UDPServer::ReceiveUDPData(SOCKET sock, char* buffer, int bufferSize, UDPClient& client) {
+int UDPServer::ReceiveUDPData(SocketHandler sock, char* buffer, int bufferSize, UDPClient& client) {
 
     struct sockaddr_in clientAddr;
     socklen_t addrLen = sizeof(clientAddr);

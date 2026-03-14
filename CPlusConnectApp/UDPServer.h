@@ -15,7 +15,7 @@ public:
     SocketHandler sock;
     char IP[16];
     int Port;
-    //sockaddr* addr;
+
     struct sockaddr_in addr; // stores address not just ptr
 
     int SendTo(const char* Message) {
