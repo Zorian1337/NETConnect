@@ -20,7 +20,7 @@ bool TCPServer::StartServer(const char* IP, int Port) {
 	struct in_addr addr;
 	if (!NetUtil::GetIPv4Address(IP, addr)) return false;
 
-	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) {
+	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_STREAM, 0, sock)) {
 		Debugger::WriteError("Failed to create socket: ");
 		//std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
 		return false;
@@ -61,7 +61,7 @@ bool TCPServer::StartServer(const char* IP, int Port) {
 
 
 bool TCPServer::StartServer(int Port) {
-	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) {
+	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_STREAM, 0, sock)) {
 		//std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
 		Debugger::WriteError("Failed to create socket: ");
 		return false;
@@ -83,7 +83,8 @@ bool TCPServer::StartServer(int Port) {
 	if (listen(sock, 5) != 0)
 	{
 		//DEBUGLOG << "Failed to listen: " << strerror(errno);
-		Debugger::WriteError("Failed to listen: ");
+		printf("Failed to listen: %i", WSAGetLastError());
+		//Debugger::WriteError("Failed to listen: "); // this isnt perfect yet
 		closesocket(sock);
 		return false;
 	}
@@ -113,12 +114,14 @@ void TCPServer::HandleListening(SocketHandler sock) {
 		client.addr = clientAddr;
 
 		// Sets up our connection event, and storing a piece of TCPServer for future use.
-		OnClientConnected.Subscribe(this, &TCPServer::HandleClientConnected);
+		OnClientConnected.Invoke(conn, client); // Use subscribe to set handler
 	}
 }
 
+//
 void TCPServer::HandleClientConnected(SocketHandler sock, TCPServerClient& client) {
 	// Reusables
+
 	int bytesRead;
 	char Buffer[1024];
 
