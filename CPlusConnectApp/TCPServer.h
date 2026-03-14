@@ -10,7 +10,8 @@
 #include "Event.h"
 
 
-class TCPClient {
+// Used to store clients that connect to our server, and send data to them.
+class TCPServerClient {
 public:
     SocketHandler sock;
     char IP[16];
@@ -30,8 +31,8 @@ public:
     // Atomic makes this thread safe (from what I've read)
     std::atomic<bool> IsServerRunning{ false };
 
-	Event<SocketHandler, TCPClient&> OnClientConnected; 
-    Event<TCPClient&, std::vector<uint8_t>&> OnTCPDataReceived;
+	Event<SocketHandler, TCPServerClient&> OnClientConnected;
+    Event<TCPServerClient&, std::vector<uint8_t>&> OnTCPDataReceived;
 
     // Starts the server on the given port
     bool StartServer(int Port);
@@ -48,7 +49,7 @@ private:
     SocketHandler sock = INVALID_SOCKET;
     sockaddr_in serverAddr{};
     void HandleListening(SocketHandler sock);
-    void HandleClientConnected(SocketHandler sock, TCPClient& client);
+    void HandleClientConnected(SocketHandler sock, TCPServerClient& client);
     //int ReceiveTCPData(SocketHandler sock, char* buffer, int bufferSize, TCPClient& client);
 };
 

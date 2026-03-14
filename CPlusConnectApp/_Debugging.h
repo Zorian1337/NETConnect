@@ -22,10 +22,25 @@ public:
 		std::string Modified = "[DEBUG] " + Message + "\n"; // Add a prefix and newline for better visualization
 
 		#ifdef _PS4
-		DEBUGLOG << Message; // PS4 Debug Stream	
+		DEBUGLOG << Modified; // PS4 Debug Stream	
 		#endif 
 
 		#ifdef _WIN32
+		printf(Modified.c_str());
+		#endif 
+
+	}
+
+	static void WriteError(const std::string Message) {
+		std::string Modified = "[DEBUG] " + Message;
+
+		#ifdef _PS4
+		Modified += strerror(errno) + "\n";
+		DEBUGLOG << Modified; // PS4 Debug Stream	
+		#endif 
+
+		#ifdef _WIN32
+		Modified += WSAGetLastError() + "\n";
 		printf(Modified.c_str());
 		#endif 
 
