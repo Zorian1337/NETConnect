@@ -1,9 +1,11 @@
 #pragma once
 #include <cstdint>
-#include <guiddef.h>
 #include <vector>
+
+// Serialization 
 #include "json.hpp"
 #include "base64.h"
+#include <guiddef.h>
 #include "guid.hpp"
 
 

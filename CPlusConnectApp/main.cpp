@@ -6,7 +6,7 @@
 
 #include "JsonHelper.h"
 #include "MulticastPacket.h"
-
+#include "NetUtil.h"
 int main() {
 
 	//std::cout << "Hello World" << std::endl;

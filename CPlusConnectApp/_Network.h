@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "NetUtil.h" // Standard Network utilities
+//#include "NetUtil.h" // Cannot include this here as it causes a circular dependency issue
 
 #ifdef _WIN32
 #include <winsock2.h> // Windows Sockets API

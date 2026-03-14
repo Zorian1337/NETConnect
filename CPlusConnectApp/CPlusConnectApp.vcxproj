@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(IncludePath)</IncludePath>
+    <IncludePath>H:\PS4Toolchain\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -127,6 +127,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="base64.h" />
+    <ClInclude Include="_Debugging.h" />
+    <ClInclude Include="_Network.h" />
+    <ClInclude Include="_PS4.h" />
     <ClInclude Include="guid.hpp" />
     <ClInclude Include="Event.h" />
     <ClInclude Include="json.hpp" />
@@ -134,6 +137,8 @@
     <ClInclude Include="main.h" />
     <ClInclude Include="Multicast.h" />
     <ClInclude Include="MulticastPacket.h" />
+    <ClInclude Include="NetUtil.h" />
+    <ClInclude Include="TCPServer.h" />
     <ClInclude Include="UDPServer.h" />
     <ClInclude Include="UTF8Helper.h" />
   </ItemGroup>
@@ -143,6 +148,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="TCPServer.cpp" />
     <ClCompile Include="UDPServer.cpp" />
     <ClCompile Include="UTF8Helper.cpp" />
   </ItemGroup>

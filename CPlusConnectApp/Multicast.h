@@ -1,14 +1,15 @@
 #pragma once
 
 #include "UDPServer.h"
-#include <guiddef.h>
+
 #include <vector>
 #include <cstdio>
-#include "guid.hpp"
 #include "Event.h"
 #include "UTF8Helper.h"
 #include "MulticastPacket.h"
 
+#include <guiddef.h>
+#include "guid.hpp"
 
 
 class Multicast
@@ -87,7 +88,6 @@ public:
 		Server.OnUDPDataReceived.Subscribe(this, &Multicast::OnDataReceived);
 
 		//SenderId = xg::newGuid();
-
 
 		bool IsStarted = Server.StartMulticastServer(IP, Port, multicastAddr);
 

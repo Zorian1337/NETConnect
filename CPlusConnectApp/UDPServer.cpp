@@ -1,3 +1,5 @@
+// This needs to support crossplatform via typedef and preprocessor directives, but for now I will just implement the Windows version and worry about PS4 later.
+
 #include "UDPServer.h"
 
 //#include <winsock2.h> -included in _Network.h
@@ -6,6 +8,8 @@
 //#pragma comment(lib, "Ws2_32.lib") - included in _Network.h
 
 #include "_Network.h" // Includes (winsock, ws2tcpip, NetUtil, or any other net headers)
+#include "NetUtil.h" 
+
 
 #include <iostream>
 #include <thread>
@@ -14,14 +18,13 @@
 
 
 
-
-
-
 bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& multicastAddr) {
     struct in_addr addr;
-	if (!NetUtil::GetIPv4Address(IP, addr)) return false; // Testing NetUtil for getting IPv4 address, should be able to replace the inet_pton call with this
+	if (!NetUtil::GetIPv4Address(IP, addr)) return false; 
     
-	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) { // Attempt to use NetUtil for creating socket, should be able to replace the socket call with this
+	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) { 
+
+        // Make sure to setup a debugging command that determines between platform
         std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
         return false;
     }

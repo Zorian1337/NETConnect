@@ -13,40 +13,67 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Source Files\Multicast">
-      <UniqueIdentifier>{bcac2666-29c4-45c4-8bf3-1797fc275844}</UniqueIdentifier>
+    <Filter Include="Header Files\Global">
+      <UniqueIdentifier>{746347e2-7fa0-4c4c-89c7-fad9bdfeed98}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Encoding">
+      <UniqueIdentifier>{d9ab0128-076b-4f5e-8330-675fc87f47c9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Network">
+      <UniqueIdentifier>{45213c9a-8641-4c19-9d98-d1947394e217}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Network\Packet">
+      <UniqueIdentifier>{a4969755-006d-47aa-8f05-e9158d4311b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Network\Socket">
+      <UniqueIdentifier>{c5754fc6-33a5-4b37-8708-a602ff18a565}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UDPServer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Event.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="MulticastPacket.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="_PS4.h">
+      <Filter>Header Files\Global</Filter>
     </ClInclude>
-    <ClInclude Include="json.hpp">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="_Network.h">
+      <Filter>Header Files\Global</Filter>
     </ClInclude>
-    <ClInclude Include="UTF8Helper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="guid.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="JsonHelper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Multicast.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="_Debugging.h">
+      <Filter>Header Files\Global</Filter>
     </ClInclude>
     <ClInclude Include="base64.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\Encoding</Filter>
+    </ClInclude>
+    <ClInclude Include="guid.hpp">
+      <Filter>Header Files\Encoding</Filter>
+    </ClInclude>
+    <ClInclude Include="json.hpp">
+      <Filter>Header Files\Encoding</Filter>
+    </ClInclude>
+    <ClInclude Include="UTF8Helper.h">
+      <Filter>Header Files\Encoding</Filter>
+    </ClInclude>
+    <ClInclude Include="JsonHelper.h">
+      <Filter>Header Files\Encoding</Filter>
+    </ClInclude>
+    <ClInclude Include="NetUtil.h">
+      <Filter>Header Files\Network</Filter>
+    </ClInclude>
+    <ClInclude Include="MulticastPacket.h">
+      <Filter>Header Files\Network\Packet</Filter>
+    </ClInclude>
+    <ClInclude Include="Multicast.h">
+      <Filter>Header Files\Network\Socket</Filter>
+    </ClInclude>
+    <ClInclude Include="TCPServer.h">
+      <Filter>Header Files\Network\Socket</Filter>
+    </ClInclude>
+    <ClInclude Include="UDPServer.h">
+      <Filter>Header Files\Network\Socket</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -63,6 +90,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="guid.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TCPServer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
