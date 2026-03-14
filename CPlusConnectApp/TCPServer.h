@@ -1,15 +1,28 @@
 #pragma once
 
-#include <winsock2.h>
-#include <ws2tcpip.h>
+//#include <winsock2.h> -included in _Network.h
+//#include <ws2tcpip.h> -included in _Network.h
+//#pragma comment(lib, "Ws2_32.lib") -included in _Network.h
+#include "_Network.h" // Includes (winsock, ws2tcpip, NetUtil, or any other net headers)
+
 #include <iostream>
-
-#pragma comment(lib, "Ws2_32.lib")
-
+#include <atomic>
 #include "Event.h"
-#include <atomic> // Thread safe 
 
 
+class TCPClient {
+public:
+    SocketHandler sock;
+    char IP[16];
+    int Port;
+
+    struct sockaddr_in addr; // stores address not just ptr
+
+    int SendTo(const char* Message) {
+        return sendto(sock, Message, strlen(Message), 0,
+            (struct sockaddr*)&addr, sizeof(addr));
+    }
+};
 
 class TCPServer
 {
@@ -17,7 +30,8 @@ public:
     // Atomic makes this thread safe (from what I've read)
     std::atomic<bool> IsServerRunning{ false };
 
-    //Event<UDPClient&, std::vector<uint8_t>&> OnUDPDataReceived;
+	Event<SocketHandler, TCPClient&> OnClientConnected; 
+    Event<TCPClient&, std::vector<uint8_t>&> OnTCPDataReceived;
 
     // Starts the server on the given port
     bool StartServer(int Port);
@@ -31,9 +45,10 @@ public:
 
 private:
 
-    SOCKET sock = INVALID_SOCKET;
+    SocketHandler sock = INVALID_SOCKET;
     sockaddr_in serverAddr{};
-    void HandleListening(SOCKET sock);
-    //int ReceiveUDPData(SOCKET sock, char* buffer, int bufferSize, UDPClient& client);
+    void HandleListening(SocketHandler sock);
+    void HandleClientConnected(SocketHandler sock, TCPClient& client);
+    //int ReceiveTCPData(SocketHandler sock, char* buffer, int bufferSize, TCPClient& client);
 };
 
