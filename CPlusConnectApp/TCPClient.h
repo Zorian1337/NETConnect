@@ -7,11 +7,20 @@
 #include "NetUtil.h"
 
 #include "Event.h"
+
+
+class Node;
+
 class TCPClient
 {
 public:
 
 	// EventHandlers 
+
+	Node* Self;
+
+	explicit TCPClient() : Self(nullptr) {}
+	explicit TCPClient(Node* Peer) : Self(Peer) { }
 
 	Event<SocketHandler> OnConnected;
 	Event<SocketHandler, std::vector<uint8_t>> OnDataReceived;

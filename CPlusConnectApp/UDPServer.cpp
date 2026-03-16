@@ -20,7 +20,7 @@
 
 
 
-bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& multicastAddr, bool IsBlocking = true) {
+bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& multicastAddr, bool IsBlocking) {
     struct in_addr addr;
 	if (!NetUtil::GetIPv4Address(IP, addr)) return false; 
     
@@ -99,7 +99,7 @@ bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& mult
     return true;
 }
 
-bool UDPServer::StartServer(const char* IP, int Port, bool IsBlocking = true) {
+bool UDPServer::StartServer(const char* IP, int Port, bool IsBlocking) {
     
     struct in_addr addr;
     if (!NetUtil::GetIPv4Address(IP, addr)) return false;
@@ -144,12 +144,7 @@ bool UDPServer::StartServer(const char* IP, int Port, bool IsBlocking = true) {
     return true;
 }
 
-UDPServer::UDPServer(Node& Peer) : Self(Peer)
-{
-
-}
-
-bool UDPServer::StartServer(int Port, bool IsBlocking = true) {
+bool UDPServer::StartServer(int Port, bool IsBlocking) {
     if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) {
         std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
         return false;

@@ -9,7 +9,10 @@
 #include <atomic>
 #include "Event.h"
 
-#include "Node.h"
+//#include "Node.h"
+
+class Node;
+
 class UDPClient {
 public:
     SocketHandler sock;
@@ -24,12 +27,10 @@ public:
     }
 };
 
-class Node;  // Forward declaration
-
 class UDPServer
 {
 public:
-    Node& Self;
+    Node* Self;
 
     // Handles the socket for each platform (SOCKET for Windows, int for Linux)
     SocketHandler sock = INVALID_SOCKET;
@@ -37,10 +38,9 @@ public:
 
     std::atomic<bool> IsServerRunning{ false };
 
-    explicit UDPServer(Node& Peer); //: Self(Peer){
+    explicit UDPServer() : Self(nullptr) {}
+    explicit UDPServer(Node* Peer) : Self(Peer) { }
     
-
-
     Event<UDPClient, std::vector<uint8_t>> OnUDPDataReceived;
 
     // Starts the server on the given port
