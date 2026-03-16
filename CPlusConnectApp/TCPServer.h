@@ -10,6 +10,9 @@
 #include <atomic>
 #include "Event.h"
 
+//#include "Node.h"
+
+class Node;
 
 // Used to store clients that connect to our server, and send data to them.
 class TCPServerClient {
@@ -29,14 +32,17 @@ public:
 class TCPServer
 {
 public:
+    Node* Self;
     std::vector<SocketHandler> clients;
 
-    TCPServer() {
+    explicit TCPServer() : Self(nullptr) {
         // Register events on init
         OnClientConnected.Subscribe(this, &TCPServer::HandleClientConnected);
-		OnTCPDataReceived.Subscribe(this, &TCPServer::HandleTCPDataReceived);
+        OnTCPDataReceived.Subscribe(this, &TCPServer::HandleTCPDataReceived);
     }
-    
+    explicit TCPServer(Node* Peer) : Self(Peer) {}
+
+
     sockaddr_in serverAddr{};
 	std::string BoundIP; // Store the IP we bound to for future use (IE sending to clients, etc)
 	int BoundPort; // Store the port we bound to for future use (IE sending to clients, etc)
@@ -49,8 +55,8 @@ public:
 
 
     // Starts the server on the given port
-    bool StartServer(int Port);
-    bool StartServer(const char* IP, int Port);
+    bool StartServer(int Port, bool IsBlocking = true);
+    bool StartServer(const char* IP, int Port, bool IsBlocking = true);
 
     std::string GetHostIPPort() const {
         std::string IP = NetUtil::GetLocalIPAddress();

@@ -15,7 +15,7 @@
 #include <thread>
 #include "UTF8Helper.h"
 
-bool TCPServer::StartServer(const char* IP, int Port) {
+bool TCPServer::StartServer(const char* IP, int Port, bool IsBlocking) {
 	
 	struct in_addr addr;
 	if (!NetUtil::GetIPv4Address(IP, addr)) return false;
@@ -30,6 +30,17 @@ bool TCPServer::StartServer(const char* IP, int Port) {
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_addr.s_addr = addr.S_un.S_addr;
 	serverAddr.sin_port = htons(Port);
+
+	if (!IsBlocking) {
+		// Set NON-BLOCKING mode
+		#ifdef _WIN32
+		u_long mode = 1;
+		ioctlsocket(sock, FIONBIO, &mode);
+		#else
+		int flags = fcntl(udpSocket, F_GETFL, 0);
+		fcntl(udpSocket, F_SETFL, flags | O_NONBLOCK);
+		#endif
+	}
 
 	if (bind(sock, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0) {
 		Debugger::WriteError("Failed to bind: ");
@@ -62,15 +73,17 @@ bool TCPServer::StartServer(const char* IP, int Port) {
 	//std::cout << "Server started on port " << Port << std::endl;
 	Debugger::WriteLine("Server started on port " + Port);
 
-	// Run the listener in a detached thread
-	std::thread listener(&TCPServer::HandleListening, this, sock);
-	listener.detach();
+	if (IsBlocking) {
+		// Run the listener in a detached thread
+		std::thread listener(&TCPServer::HandleListening, this, sock);
+		listener.detach();
+	}
 
 	return true;
 }
 
 
-bool TCPServer::StartServer(int Port) {
+bool TCPServer::StartServer(int Port, bool IsBlocking) {
 	if (!NetUtil::TryCreateSocket(AF_INET, SOCK_STREAM, 0, sock)) {
 		//std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
 		Debugger::WriteError("Failed to create socket: ");
@@ -84,6 +97,17 @@ bool TCPServer::StartServer(int Port) {
 
 	// Gets the local IP address for debugging purposes, not used for binding since we bind to INADDR_ANY
 	std::string IPv4 = NetUtil::GetIPv4String(serverAddr.sin_addr);
+
+	if (!IsBlocking) {
+		// Set NON-BLOCKING mode
+		#ifdef _WIN32
+		u_long mode = 1;
+		ioctlsocket(sock, FIONBIO, &mode);
+		#else
+		int flags = fcntl(udpSocket, F_GETFL, 0);
+		fcntl(udpSocket, F_SETFL, flags | O_NONBLOCK);
+		#endif
+	}
 
 	if (bind(sock, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0) {
 		//std::cout << "Failed to bind: " << WSAGetLastError() << std::endl;
@@ -117,9 +141,12 @@ bool TCPServer::StartServer(int Port) {
 	//std::cout << "Server started on port " << Port << std::endl;
 	//Debugger::WriteError("Server started on port " + Port);
 	printf("TCPServer server started [%s:%i]\n", IPv4.c_str(), Port);
-	// Run the listener in a detached thread
-	std::thread listener(&TCPServer::HandleListening, this, sock);
-	listener.detach();
+
+	if (IsBlocking) {
+		// Run the listener in a detached thread
+		std::thread listener(&TCPServer::HandleListening, this, sock);
+		listener.detach();
+	}
 	return true;
 }
 
