@@ -1,15 +1,20 @@
 #include "Multicast.h"
 #include "Node.h"
 
+
+//Multicast::Multicast(Node& Peer) : Self(Peer), Server(Peer) {
+//	//Server.OnUDPDataReceived.Subscribe(this, &Multicast::OnDataReceived);
+//}
+
 int Multicast::SendPacket(const std::vector<uint8_t>& _data, MulticastAction _actionType) {
-	MulticastPacket packet(Self.PeerId, _data, _actionType);
+	MulticastPacket packet(Self->PeerId, _data, _actionType);
 	Debugger::WriteLine("sending multicast join packet");
 	int bytesSent = SendToAll(packet.ToJson());
 	return bytesSent;
 }
 
 void Multicast::OnDataReceived(UDPClient Client, std::vector<uint8_t> data) {
-	printf("%s received ->\n	%s\n", Self.PeerId.str().c_str(), UTF8Helper::ToString(data).c_str());
+	printf("%s received ->\n	%s\n", Self->PeerId.str().c_str(), UTF8Helper::ToString(data).c_str());
 
 	// Attempt to parse from MulticastPacket as this is a Multicast, so all data should be in this form anyway.
 	MulticastPacket packet;
@@ -19,7 +24,7 @@ void Multicast::OnDataReceived(UDPClient Client, std::vector<uint8_t> data) {
 	}
 
 	// Ignore packets from self
-	if (Self.PeerId == packet.SenderId) return;
+	if (Self->PeerId == packet.SenderId) return;
 
 
 	//printf("Packet: %s\n", packet.ToJson().c_str());

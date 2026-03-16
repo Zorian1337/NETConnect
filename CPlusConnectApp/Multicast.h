@@ -21,16 +21,13 @@ class Node; // This is called a forward declaration
 class Multicast
 {
 public:
-	Node& Self;
-	UDPServer Server { Self };
+	Node* Self;
+	UDPServer Server; // { Self };
 	struct sockaddr_in multicastAddr;
 	std::atomic<bool> IsServerRunning{ false };
 
-	explicit Multicast(Node& Peer) : Self(Peer) 
-	{
-		// Wire events on init
-		Server.OnUDPDataReceived.Subscribe(this, &Multicast::OnDataReceived);
-	}
+	explicit Multicast() : Self(nullptr) {}
+	explicit Multicast(Node* Peer) : Self(Peer), Server(Peer) {}
 
 	// Implementation moved to .cpp file to avoid circular dependency issues with Node.h
 	void OnDataReceived(UDPClient Client, std::vector<uint8_t> data); // no clue why this is here and unused.
