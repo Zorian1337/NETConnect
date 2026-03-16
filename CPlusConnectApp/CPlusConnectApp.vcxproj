@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>H:\PS4Toolchain\include;$(IncludePath)</IncludePath>
+    <IncludePath>$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -127,6 +127,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="base64.h" />
+    <ClInclude Include="NBPeer.h" />
+    <ClInclude Include="Node.h" />
+    <ClInclude Include="ThreadPool.h" />
+    <ClInclude Include="_Peer.h" />
+    <ClInclude Include="TCPClient.h" />
     <ClInclude Include="_Debugging.h" />
     <ClInclude Include="_Network.h" />
     <ClInclude Include="_PS4.h" />
@@ -148,6 +153,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Multicast.cpp" />
+    <ClCompile Include="NBPeer.cpp" />
+    <ClCompile Include="Node.cpp" />
+    <ClCompile Include="TCPClient.cpp" />
     <ClCompile Include="TCPServer.cpp" />
     <ClCompile Include="UDPServer.cpp" />
     <ClCompile Include="UTF8Helper.cpp" />

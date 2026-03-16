@@ -18,7 +18,9 @@
 
 
 
-bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& multicastAddr) {
+
+
+bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& multicastAddr, bool IsBlocking = true) {
     struct in_addr addr;
 	if (!NetUtil::GetIPv4Address(IP, addr)) return false; 
     
@@ -48,6 +50,17 @@ bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& mult
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY); // bind to any IP not the multicast group (cannot bind to multicast IP)
     serverAddr.sin_port = htons(Port);
 
+    if (!IsBlocking) {
+        // Set NON-BLOCKING mode
+        #ifdef _WIN32
+        u_long mode = 1;
+        ioctlsocket(sock, FIONBIO, &mode);
+        #else
+        int flags = fcntl(udpSocket, F_GETFL, 0);
+        fcntl(udpSocket, F_SETFL, flags | O_NONBLOCK);
+        #endif
+    }
+
     if (bind(sock, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0) {
         std::cout << "Failed to bind: " << WSAGetLastError() << std::endl;
         closesocket(sock);
@@ -76,14 +89,18 @@ bool UDPServer::StartMulticastServer(const char* IP, int Port, sockaddr_in& mult
     printf("Joined Multicast group [%s:%i]\n", IP, Port);
     //std::cout << "Joined Multicast group" << Port << std::endl;
 
-    // Run the listener in a detached thread
-    std::thread listener(&UDPServer::HandleListening, this, sock);
-    listener.detach();
+
+    if (IsBlocking) {
+        // Run the listener in a detached thread
+        std::thread listener(&UDPServer::HandleListening, this, sock);
+        listener.detach();
+    }
 
     return true;
 }
 
-bool UDPServer::StartServer(const char* IP, int Port) {
+bool UDPServer::StartServer(const char* IP, int Port, bool IsBlocking = true) {
+    
     struct in_addr addr;
     if (!NetUtil::GetIPv4Address(IP, addr)) return false;
 
@@ -97,6 +114,17 @@ bool UDPServer::StartServer(const char* IP, int Port) {
     serverAddr.sin_addr.s_addr = addr.S_un.S_addr;
     serverAddr.sin_port = htons(Port);
 
+    if (!IsBlocking) {
+        // Set NON-BLOCKING mode
+        #ifdef _WIN32
+        u_long mode = 1;
+        ioctlsocket(sock, FIONBIO, &mode);
+        #else
+        int flags = fcntl(udpSocket, F_GETFL, 0);
+        fcntl(udpSocket, F_SETFL, flags | O_NONBLOCK);
+        #endif
+    }
+
     if (bind(sock, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0) {
         std::cout << "Failed to bind: " << WSAGetLastError() << std::endl;
         closesocket(sock);
@@ -107,14 +135,21 @@ bool UDPServer::StartServer(const char* IP, int Port) {
 
     std::cout << "Server started on port " << Port << std::endl;
 
-    // Run the listener in a detached thread
-    std::thread listener(&UDPServer::HandleListening, this, sock);
-    listener.detach();
+    if (IsBlocking) {
+        // Run the listener in a detached thread
+        std::thread listener(&UDPServer::HandleListening, this, sock);
+        listener.detach();
+    }
 
     return true;
 }
 
-bool UDPServer::StartServer(int Port) {
+UDPServer::UDPServer(Node& Peer) : Self(Peer)
+{
+
+}
+
+bool UDPServer::StartServer(int Port, bool IsBlocking = true) {
     if (!NetUtil::TryCreateSocket(AF_INET, SOCK_DGRAM, 0, sock)) {
         std::cout << "Failed to create socket: " << WSAGetLastError() << std::endl;
         return false;
@@ -124,6 +159,17 @@ bool UDPServer::StartServer(int Port) {
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
     serverAddr.sin_port = htons(Port);
+
+    if (!IsBlocking) {
+        // Set NON-BLOCKING mode
+        #ifdef _WIN32
+        u_long mode = 1;
+        ioctlsocket(sock, FIONBIO, &mode);
+        #else
+        int flags = fcntl(udpSocket, F_GETFL, 0);
+        fcntl(udpSocket, F_SETFL, flags | O_NONBLOCK);
+        #endif
+    }
 
     if (bind(sock, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) != 0) {
         std::cout << "Failed to bind: " << WSAGetLastError() << WSAGetLastError() << std::endl;
@@ -135,9 +181,11 @@ bool UDPServer::StartServer(int Port) {
 
     std::cout << "Server started on port " << Port << std::endl;
 
-    // Run the listener in a detached thread
-    std::thread listener(&UDPServer::HandleListening, this, sock);
-    listener.detach();
+    if (IsBlocking) {
+        // Run the listener in a detached thread
+        std::thread listener(&UDPServer::HandleListening, this, sock);
+        listener.detach();
+    }
 
     return true;
 }
@@ -155,7 +203,7 @@ void UDPServer::HandleListening(SocketHandler sock) {
         if (bytesRead > 0) {
             // Packages utf8 data for event handling
             std::vector<uint8_t> data(Buffer, Buffer + bytesRead);
-            OnUDPDataReceived.Invoke(client, data);
+            OnUDPDataReceived.InvokeAsync(client, data);
         }
     }
 }

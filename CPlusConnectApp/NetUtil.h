@@ -56,8 +56,68 @@ public:
 		return result; // type = None
 	}
 
+	static std::string GetLocalIPAddress() {
+
+		#ifdef _WIN32
+		std::string ip = "127.0.0.1";  // Default fallback
+		DWORD dwSize = 0;
+
+		// First call to get required buffer size
+		GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST |
+			GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
+			NULL, NULL, &dwSize);
+
+		PIP_ADAPTER_ADDRESSES pAddresses = (IP_ADAPTER_ADDRESSES*)malloc(dwSize);
+		if (!pAddresses) return ip;
+
+		DWORD dwRetVal = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST |
+			GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
+			NULL, pAddresses, &dwSize);
+
+		if (dwRetVal == NO_ERROR) {
+			for (PIP_ADAPTER_ADDRESSES pCurr = pAddresses; pCurr; pCurr = pCurr->Next) {
+				// Skip loopback and disconnected adapters
+				if (pCurr->IfType != IF_TYPE_SOFTWARE_LOOPBACK &&
+					pCurr->OperStatus == IfOperStatusUp) {
+
+					PIP_ADAPTER_UNICAST_ADDRESS pUnicast = pCurr->FirstUnicastAddress;
+					while (pUnicast) {
+						sockaddr_in* addr = (sockaddr_in*)pUnicast->Address.lpSockaddr;
+						char ipStr[INET_ADDRSTRLEN];
+						inet_ntop(AF_INET, &addr->sin_addr, ipStr, sizeof(ipStr));
+
+						// Skip 0.0.0.0 and 127.0.0.1
+						if (strcmp(ipStr, "0.0.0.0") != 0 &&
+							strcmp(ipStr, "127.0.0.1") != 0) {
+							ip = ipStr;
+							break;
+						}
+						pUnicast = pUnicast->Next;
+					}
+				}
+			}
+		}
+
+		free(pAddresses);
+		#endif	
+
+
+		return ip;
+	}
+
 	static bool GetIPv4Address(const char* IP, in_addr& addr) {
 		if (inet_pton(AF_INET, IP, &addr) != 1) return false;
+		else return true;
+	}
+
+	static std::string GetIPv4String(const in_addr& addr) {
+		char buffer[INET_ADDRSTRLEN];
+		if (inet_ntop(AF_INET, &addr, buffer, sizeof(buffer)) == nullptr) return std::string();
+		else return std::string(buffer); 
+	}
+
+	static bool GetIPv6String(const in6_addr& addr, char* buffer, size_t bufferSize) {
+		if (inet_ntop(AF_INET6, &addr, buffer, bufferSize) == nullptr) return false;
 		else return true;
 	}
 

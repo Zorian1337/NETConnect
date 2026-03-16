@@ -11,89 +11,66 @@
 #include <guiddef.h>
 #include "guid.hpp"
 
+//#include "_Peer.h"
+
+
+
+class Node; // This is called a forward declaration
+
 
 class Multicast
 {
 public:
-	xg::Guid SenderId; // Needs to defined per platform in preprocessers (current: GUID_WINDOWS=1) 
-	UDPServer Server;
+	Node& Self;
+	UDPServer Server { Self };
 	struct sockaddr_in multicastAddr;
+	std::atomic<bool> IsServerRunning{ false };
 
-	Multicast() {
-		SenderId = xg::newGuid();
+	explicit Multicast(Node& Peer) : Self(Peer) 
+	{
+		// Wire events on init
+		Server.OnUDPDataReceived.Subscribe(this, &Multicast::OnDataReceived);
 	}
 
+	// Implementation moved to .cpp file to avoid circular dependency issues with Node.h
+	void OnDataReceived(UDPClient Client, std::vector<uint8_t> data); // no clue why this is here and unused.
 
-	// Make sure this signature matches your Event exactly
-	void OnDataReceived(UDPClient& Client, std::vector<uint8_t>& data) {
-		printf("%s received ->\n	%s\n", SenderId.str().c_str(), UTF8Helper::ToString(data).c_str());
+	void CheckForPackets() {
+		if (!IsServerRunning || Server.sock == INVALID_SOCKET) return;
 
-		// Attempt to parse from MulticastPacket as this is a Multicast, so all data should be in this form anyway.
-		MulticastPacket packet;
-		if (!MulticastPacket::TryFromJson(UTF8Helper::ToString(data), packet)) {
-			//printf("packet failed to be read\n");
-			return;
-		}
+		char buffer[4096];
+		sockaddr_in clientAddr;
+		socklen_t addrLen = sizeof(clientAddr);
 
-		// Ignore packets from self
-		if (SenderId == packet.SenderId) return;
+		// Non-blocking receive - returns immediately if no data
+		int bytes = recvfrom(Server.sock, buffer, sizeof(buffer), 0,
+			(sockaddr*)&clientAddr, &addrLen);
 
+		if (bytes > 0) {
+			// Got a packet! Queue processing to thread pool
+			std::vector<uint8_t> data(buffer, buffer + bytes);
 
-		//printf("Packet: %s\n", packet.ToJson().c_str());
-		//printf("data received as a test\n");
-
-		return; // blocked for debugging
-
-		printf("[%s] -> sent packet data\n", packet.SenderId.str().c_str());
-
-		switch (packet.Action) 
-		{
-			// JOIN
-			case 0: {
-				// Make sure this client is new before we add them to our list
-				if (false) return; // fake out 
-
-				// Parse our data for our client (IP:Port)
-				std::string Data = UTF8Helper::ToString(packet.Data);
-				std::vector<std::string> Addr = UTF8Helper::Split(Data, ':');
-
-				// Only allow the size of 2 as we NEED these two pieces
-				if (Addr.size() == 2) {
-					// Handle our new peer
-					std::string IP = Addr[0];
-					std::string Port = Addr[1];
-
-					// Log new peer and print they joined for now
-					printf("Peer [%s:%s] joined the system.\n", IP.c_str(), Port.c_str());
-				}
-
-
-
-
-				break;
-			}
-
-			// LEAVE
-			case 1: break;
-			case 2: break;
+			// Queue to thread pool - don't process here!
+			//Self.GetThreadPool().enqueue([this, data, clientAddr]() {
+			//	this->ProcessPacket(data, clientAddr);
+			//	});
 		}
 	}
 
-	int SentToAll(const std::string Message) {
+	int SendToAll(const std::string Message) {
 		return Server.SendTo((struct sockaddr*)&multicastAddr, Message.c_str());
 	}
 
-	bool StartMulticastServer(const char* IP, int Port) {
-		// Wire on data received
-		Server.OnUDPDataReceived.Subscribe(this, &Multicast::OnDataReceived);
+	int SendPacket(const std::vector<uint8_t>& _data, MulticastAction _actionType);
 
-		//SenderId = xg::newGuid();
+	//bool BindMulticastSocket
 
-		bool IsStarted = Server.StartMulticastServer(IP, Port, multicastAddr);
+	bool StartMulticastServer(const char* IP, int Port, bool IsBlocking = true) {
+		IsServerRunning = Server.StartMulticastServer(IP, Port, multicastAddr, IsBlocking);
 
-		if (IsStarted) {
-			int bytesSent = SentToAll("THIS IS A TEST!");
+		if (IsServerRunning) {
+			int bytesSent = SendToAll("THIS IS A TEST!");
 		}
-		return IsStarted;
+		return IsServerRunning;
 	}
 };

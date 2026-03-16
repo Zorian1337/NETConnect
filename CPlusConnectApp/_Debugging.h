@@ -40,8 +40,8 @@ public:
 		#endif 
 
 		#ifdef _WIN32
-		Modified += WSAGetLastError() + "\n";
-		printf(Modified.c_str());
+		//Modified += WSAGetLastError() + "\n"; // fix this later as apparently WSAGetLastError is specifically for sockets and not all errors
+		printf(Modified.c_str()); //
 		#endif 
 
 	}

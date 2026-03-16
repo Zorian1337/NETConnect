@@ -1,13 +1,11 @@
 #pragma once
 #include <cstdint>
 #include <vector>
-
-// Serialization 
 #include "json.hpp"
 #include "base64.h"
-#include <guiddef.h>
 #include "guid.hpp"
-#include "UTF8Helper.h"
+//#include <guiddef.h>
+
 
 enum MulticastAction : uint8_t {
 	Join, Leave, Data
@@ -21,7 +19,7 @@ struct MulticastPacket {
 
     // Default constructor
     MulticastPacket() : Action(MulticastAction::Join) {
-        memset(&SenderId, 0, sizeof(GUID));
+        memset(&SenderId, 0, sizeof(xg::Guid)); //GUID
     }
 
     // Parameterized constructor
@@ -84,6 +82,8 @@ struct MulticastPacket {
         catch (const std::exception& e) { return nullptr; }
     }
 
+
+
     //static bool TryFromJson(const nlohmann::json& j, MulticastPacket& packet) {
     //
     //    try 
@@ -115,11 +115,12 @@ struct MulticastPacket {
     //    return p;
     //}
 
-    std::string ToJson() {
 
+
+    std::string ToJson() {
         return nlohmann::ordered_json{
             {"SenderId", GuidToString()},  // Convert GUID to string
-            {"Data", base64_encode(UTF8Helper::ToString(Data))},  // Convert data to base64 as its sent that way on our c# application (when byte[] gets serialized)
+            {"Data", Data},                 // vector<uint8_t> works directly
             {"Action", static_cast<int>(Action)}
         }.dump().c_str();
     }

@@ -28,6 +28,9 @@
     <Filter Include="Header Files\Network\Socket">
       <UniqueIdentifier>{c5754fc6-33a5-4b37-8708-a602ff18a565}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\Network\Peer">
+      <UniqueIdentifier>{43e72900-3930-4e88-8911-ede160eb2482}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
@@ -75,6 +78,21 @@
     <ClInclude Include="UDPServer.h">
       <Filter>Header Files\Network\Socket</Filter>
     </ClInclude>
+    <ClInclude Include="TCPClient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Node.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="_Peer.h">
+      <Filter>Header Files\Global</Filter>
+    </ClInclude>
+    <ClInclude Include="ThreadPool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="NBPeer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -93,6 +111,18 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="TCPServer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TCPClient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Node.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Multicast.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="NBPeer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

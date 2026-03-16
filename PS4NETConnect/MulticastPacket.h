@@ -1,13 +1,11 @@
 #pragma once
 #include <cstdint>
+#include <guiddef.h>
 #include <vector>
-
-// Serialization 
 #include "json.hpp"
 #include "base64.h"
-#include <guiddef.h>
 #include "guid.hpp"
-#include "UTF8Helper.h"
+
 
 enum MulticastAction : uint8_t {
 	Join, Leave, Data
@@ -116,10 +114,9 @@ struct MulticastPacket {
     //}
 
     std::string ToJson() {
-
         return nlohmann::ordered_json{
             {"SenderId", GuidToString()},  // Convert GUID to string
-            {"Data", base64_encode(UTF8Helper::ToString(Data))},  // Convert data to base64 as its sent that way on our c# application (when byte[] gets serialized)
+            {"Data", Data},                 // vector<uint8_t> works directly
             {"Action", static_cast<int>(Action)}
         }.dump().c_str();
     }

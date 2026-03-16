@@ -90,6 +90,7 @@ public class Multicast
                 //Console.WriteLine();
 
                 string receivedMsg = Encoding.UTF8.GetString(received);
+                Console.WriteLine(receivedMsg);
                 if (receivedMsg.IsValidJSON(out MulticastPacket Packet) && Packet.SenderId != SenderId)
                 {
                     OnMulticastMessage?.Invoke(Packet);

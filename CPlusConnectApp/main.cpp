@@ -7,23 +7,33 @@
 #include "JsonHelper.h"
 #include "MulticastPacket.h"
 #include "NetUtil.h"
+
+#include "TCPServer.h"
+#include "Node.h"
+#include "NBPeer.h"
 int main() {
 
 	//std::cout << "Hello World" << std::endl;
 
 	printf("C++ NETConnect\n");
 
+	// Read Key
 	std::cin.get();
 
-	Multicast Server;
-	if (Server.StartMulticastServer("235.69.4.20", 50420)) {
-		//std::cout << "server started" << std::endl;
-	}
+	NBPeer Peer;
+	Peer.Start();
 
-	for (;;) {
-		// inf sleep 
-		Sleep(1000);
-	}
+
+	//Node Peer;
+	//if (Peer.StartPeer()) {
+	//	// Probably register to OpenDHT here for peer discovery (im assuming)
+	//}
+
+
+	//for (;;) {
+	//	// inf sleep 
+	//	Sleep(1000);
+	//}
 	// BELOW THIS IS ALL EXPERIEMENTAL
 
 	////Server.StartServer("test", 9)

@@ -7,10 +7,12 @@
 #ifdef _WIN32
 #include <winsock2.h> // Windows Sockets API
 #include <ws2tcpip.h> // TCP/IP extensions for Windows Sockets
-
-//#include <iostream>   // Standard I/O (I dont think I really need this globally)
-
 #pragma comment(lib, "Ws2_32.lib")
+
+// Iphlpapi is used for getting local IP address and other network related information on Windows
+#include <iphlpapi.h> // apprently this is needed for the linker as pragma once wont work "-liphlpapi"
+#pragma comment(lib, "iphlpapi.lib")
+
 typedef SOCKET SocketHandler;
 const SocketHandler INVALID_SOCKET_HANDLE = INVALID_SOCKET;
 #endif
@@ -22,4 +24,8 @@ const SocketHandler INVALID_SOCKET_HANDLE = INVALID_SOCKET;
 
 typedef int SocketHandler; // Linux Filesystem uses int for sockets
 const SocketHandler INVALID_SOCKET_HANDLE = -1;
+#endif
+
+#ifdef linux // this is just a placeholder for now, I will need to figure out the correct preprocessor directive for linux and ps4 later
+#include <ifaddrs.h> // use for ps4 but needs to be tested on ps4
 #endif

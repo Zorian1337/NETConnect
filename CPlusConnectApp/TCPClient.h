@@ -49,7 +49,7 @@ public:
 					}
 
 					// Handle valid connection here (IE store server address for future use, set up recv thread, etc)
-					OnConnected.Invoke(sock);
+					OnConnected.InvokeAsync(sock);
 				break;
 			case NetUtil::IPType::IPv6: 
 				// Implement this later, for now just return false since we dont support IPv6 yet (using sockaddr_storage should be good)

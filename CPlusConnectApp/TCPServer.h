@@ -4,6 +4,7 @@
 //#include <ws2tcpip.h> -included in _Network.h
 //#pragma comment(lib, "Ws2_32.lib") -included in _Network.h
 #include "_Network.h" // Includes (winsock, ws2tcpip, NetUtil, or any other net headers)
+#include "NetUtil.h"
 
 #include <iostream>
 #include <atomic>
@@ -28,15 +29,33 @@ public:
 class TCPServer
 {
 public:
+    std::vector<SocketHandler> clients;
+
+    TCPServer() {
+        // Register events on init
+        OnClientConnected.Subscribe(this, &TCPServer::HandleClientConnected);
+		OnTCPDataReceived.Subscribe(this, &TCPServer::HandleTCPDataReceived);
+    }
+    
+    sockaddr_in serverAddr{};
+	std::string BoundIP; // Store the IP we bound to for future use (IE sending to clients, etc)
+	int BoundPort; // Store the port we bound to for future use (IE sending to clients, etc)
+
     // Atomic makes this thread safe (from what I've read)
     std::atomic<bool> IsServerRunning{ false };
 
-	Event<SocketHandler, TCPServerClient&> OnClientConnected;
-    Event<TCPServerClient&, std::vector<uint8_t>&> OnTCPDataReceived;
+	Event<SocketHandler, TCPServerClient> OnClientConnected;
+    Event<TCPServerClient, std::vector<uint8_t>> OnTCPDataReceived;
+
 
     // Starts the server on the given port
     bool StartServer(int Port);
     bool StartServer(const char* IP, int Port);
+
+    std::string GetHostIPPort() const {
+        std::string IP = NetUtil::GetLocalIPAddress();
+        return IP + ":" + std::to_string(BoundPort);
+	}
 
     void StopServer();
 
@@ -44,12 +63,16 @@ public:
         return sendto(sock, Message, strlen(Message), 0, addr, sizeof(sockaddr_in));
     }
 
-private:
 
+    void HandleClientConnected(SocketHandler sock, TCPServerClient client);
+	void HandleTCPDataReceived(TCPServerClient client, std::vector<uint8_t> data);
+
+private:
+    // Handles the socket for each platform (SOCKET for Windows, int for Linux)
     SocketHandler sock = INVALID_SOCKET;
-    sockaddr_in serverAddr{};
+    
     void HandleListening(SocketHandler sock);
-    void HandleClientConnected(SocketHandler sock, TCPServerClient& client);
+    
     //int ReceiveTCPData(SocketHandler sock, char* buffer, int bufferSize, TCPClient& client);
 };
 
