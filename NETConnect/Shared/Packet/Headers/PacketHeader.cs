@@ -138,7 +138,7 @@ public struct PacketHeader
                 Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(4).Span);
                 Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(6).Span);
                 Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
-                Packet.SentAt = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(10).Span);
+                Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(10).Span);
 
                 Headers = new PacketHeader[] { Packet };
 
@@ -165,7 +165,7 @@ public struct PacketHeader
             Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4).Span);
             Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(6).Span);
             Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
-            Packet.SentAt = BinaryPrimitives.ReadInt32LittleEndian(buffer.Slice(10).Span);
+            Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(10).Span);
 
             // Return Header, packet data is probably null
             Headers = new PacketHeader[] { Packet };
