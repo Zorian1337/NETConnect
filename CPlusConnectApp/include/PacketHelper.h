@@ -5,7 +5,7 @@
 #include <string>
 #include "Node.h"
 #include "PacketHeader.h"
-
+#include "SecurityKey.h"
 
 
 // Based on our C# version this was stuffed into every type of server/client instance and included security key data so we could always have the same structure everywhere
@@ -14,6 +14,7 @@ class PacketHelper {
 public:
 	Node* Self;
 	SocketHandler sock;
+	SecurityKey EncryptionKeys{};
 
 	PacketHelper() = default;
 	PacketHelper(Node* Peer, SocketHandler sock) : Self(Peer), sock(sock) { }
