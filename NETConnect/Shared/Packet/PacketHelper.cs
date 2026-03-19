@@ -29,7 +29,10 @@ public class PacketHelper
     /// </summary>
     public CancellationTokenSource Token { get; private set; }
 
-    public SecurityKey EncryptionKeys { get; private set; } 
+    public SecurityKey EncryptionKeys { get; private set; }
+
+
+    public Action onAuthenticated { get; set; }
 
     /// <summary>
     /// used for the client version

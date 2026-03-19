@@ -36,13 +36,15 @@ public class HeartBeat
     public int PulseCooldown = 10;
 
     public bool FirstBeat { get; set; } = true;
-
+    public bool IsEnabled { get; set; } = true;
 
     public TimeSpan LastLatency { get; set; }
     public List<PingTracker> PingLog  = new List<PingTracker>();
 
     public bool IsTimeout()
     {
+        if (!IsEnabled) return true;
+
         if (FirstBeat) return false;
         if (DateTime.UtcNow >= LastBeatAt.AddSeconds(TimeoutAfterInSeconds)) { Console.WriteLine("heartBeat Timed out"); return true; }
         else return false;
@@ -61,7 +63,7 @@ public class HeartBeat
     {
         IsDisconnected = false;
 
-
+        if (!IsEnabled) return true;
 
 
         DateTime now = DateTime.UtcNow;
@@ -98,6 +100,8 @@ public class HeartBeat
     public bool SendPing(ref PacketHelper Helper, out bool IsDisconnected)
     {
         IsDisconnected = false;
+
+        if (!IsEnabled) return true;
 
         // Allow sending data that is in the length of 0, and just send the packet header (those are control instructions)
         int bytesSent = Helper.SendUTF8Packet("<PING>", PacketActionType.Ping);

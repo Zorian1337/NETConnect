@@ -38,16 +38,11 @@ public class BaseTCPServer : BaseServerProperties
     // Server itself
     public event Action<Socket> OnClientConnected;
     public event Action<Socket> OnClientDisconnected;
-    public event Action<Socket, PacketHelper> OnAuthenticationRequested;
+    public event Action<Socket, PacketHelper, bool, bool> OnAuthenticationRequested;
     public event Action<ServerClientHandle, PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
-
 
     // Peer related - this can probably hold the clienthandle and the peer side 
     public event Action<ServerClientHandle, PeerTable> OnPeerConnected;
-
-
-    public bool IsAuthenticating = false;
-    public bool IsAuthenticated = false;
 
 
     public List<ServerClientHandle> Clients { get; set; } = new List<ServerClientHandle>();
@@ -149,9 +144,11 @@ public class BaseTCPServer : BaseServerProperties
                     // Searches for clients until the token is set to get ready to cancel
                     while (!ServerToken.IsCancellationRequested)
                     {
+                        Console.WriteLine("waiting on new clients");
                         //Console.WriteLine("Waiting on new client connections...\n");
                         Socket Client = SocketServer.Accept();
 
+                        Console.WriteLine("new client to connect");
                         // Find client then immediately handle it elsewhere for performance
                         OnClientConnected?.Invoke(Client);
                     }
@@ -346,137 +343,160 @@ public class BaseTCPServer : BaseServerProperties
 
     public void HandleClientConnected(Socket client)
     {
-        string ClientEndPoint = client.RemoteEndPoint.ToString();
-        //Console.WriteLine($"[SERVER] Client connected to the server [{ClientEndPoint}]");
-
-        CancellationTokenSource _ServerToken = ServerToken;
-        CancellationTokenSource ClientToken = new CancellationTokenSource();
-
-        // Keeps a valid buffer span to reuse
-        var Client = client;
-        NetworkBuffer Buffers = new NetworkBuffer();
-
-
-        var SelfPeer = Self;
-
-        HeartBeat heartBeat = new HeartBeat(ref SelfPeer);
-
-        // Creates a client handle 
-        ServerClientHandle ClientHandle = new ServerClientHandle(client, Buffers, DateTime.UtcNow, ref ClientToken);
-        PacketHelper Packer = new PacketHelper(ref Client, ref SelfPeer, ref ClientHandle, ref _ServerToken);
-        ClientHandle.AddPacketHelper(ref Packer);
-        ClientHandle.AddHeartBeat(ref heartBeat);
-        Clients.Add(ClientHandle);
-
-
-
-        // Use ClientHandle to control all aspects of the connection (I believe I wired it that way, that or PacketHelper)
-
-        
-        
-
-
-        //bool IsAuthenticated = false; // scraping auth for now
-        //bool HasSentSYN = false;
-
-        //Console.WriteLine($"[Server] Client has connected to me [{ClientEndPoint}]"); //{NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.RemoteEndPoint).Port}
-        Console.WriteLine($"[Server] Client: {ClientEndPoint} - Me: {NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.LocalEndPoint).Port} - ServerId: {Self.PeerId}");
-        // Handles client while token is still valid and the client hasnt timed out
-
-        
-
-        while (!ClientToken.IsCancellationRequested)
+        Task.Run(() =>
         {
-            Thread.Sleep(5); // Handles client data at a certain time per loop
+            bool IsAuthenticating = false;
+            bool IsAuthenticated = false;
+
+            string ClientEndPoint = client.RemoteEndPoint.ToString();
+            Console.WriteLine($"[SERVER] Client connected to the server [{ClientEndPoint}]");
+
+            CancellationTokenSource _ServerToken = ServerToken;
+            CancellationTokenSource ClientToken = new CancellationTokenSource();
+
+            // Keeps a valid buffer span to reuse
+            var Client = client;
+            NetworkBuffer Buffers = new NetworkBuffer();
 
 
-            // Continue until authentication is complete
-            if (IsAuthenticating) continue;
-            if (!IsAuthenticated)
+            var SelfPeer = Self;
+
+            HeartBeat heartBeat = new HeartBeat(ref SelfPeer);
+            heartBeat.IsEnabled = false; // Disabled due to c++ not having support yet
+            IsAuthenticated = true; // Enabled so we can skip auth for c++
+
+            // Creates a client handle 
+            ServerClientHandle ClientHandle = new ServerClientHandle(client, Buffers, DateTime.UtcNow, ref ClientToken);
+            PacketHelper Packer = new PacketHelper(ref Client, ref SelfPeer, ref ClientHandle, ref _ServerToken);
+            ClientHandle.AddPacketHelper(ref Packer);
+            ClientHandle.AddHeartBeat(ref heartBeat);
+            Clients.Add(ClientHandle);
+
+
+
+            // Use ClientHandle to control all aspects of the connection (I believe I wired it that way, that or PacketHelper)
+
+            Action onAuthenticated = () =>
             {
-                IsAuthenticating = true;
-                OnAuthenticationRequested.Invoke(Client, Packer);
+                IsAuthenticated = true;
+                IsAuthenticating = false;
+                Console.WriteLine($"[Server] Client {ClientEndPoint} authenticated successfully");
+            };
 
-            }
+            Packer.onAuthenticated = onAuthenticated;
+            //bool IsAuthenticated = false; // scraping auth for now
+            //bool HasSentSYN = false;
 
-            //Check for ping every so often
-            if (!heartBeat.TrySendHeartBeat(ref Packer, out bool IsDisconnected) && IsDisconnected && !heartBeat.FirstBeat)
+            //Console.WriteLine($"[Server] Client has connected to me [{ClientEndPoint}]"); //{NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.RemoteEndPoint).Port}
+            Console.WriteLine($"[Server] Client: {ClientEndPoint} - Me: {NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.LocalEndPoint).Port} - ServerId: {Self.PeerId}");
+            // Handles client while token is still valid and the client hasnt timed out
+
+            while (!ClientToken.IsCancellationRequested || Client.IsGracefulShutdown())
             {
-                ClientToken.Cancel();
+                Thread.Sleep(5); // Handles client data at a certain time per loop
 
-                if (Self.OperationMode == PeerState.Peer)
+                // Continue until authentication is complete
+
+
+
+                if (IsAuthenticating) continue;
+                if (!IsAuthenticated)
                 {
-                    var PeerInfo = Self.FindPeerById(ClientHandle.Id);
+                    IsAuthenticating = true;
+                    OnAuthenticationRequested.Invoke(Client, Packer, IsAuthenticating, IsAuthenticated);
 
-                    if (PeerInfo is not null)
+                }
+
+                //Console.WriteLine("Client passed authentication");
+                //ClientHandle.PacketHelper.SendUTF8Packet("testing");
+
+                //Check for ping every so often
+                if (!heartBeat.TrySendHeartBeat(ref Packer, out bool IsDisconnected) && IsDisconnected && !heartBeat.FirstBeat)
+                {
+                    ClientToken.Cancel();
+
+                    if (Self.OperationMode == PeerState.Peer)
                     {
-                        Clients.Remove(PeerInfo.Value.Item1);
-                        Self.ConnectedPeers.Remove(PeerInfo.Value.Item2);
+                        var PeerInfo = Self.FindPeerById(ClientHandle.Id);
 
-                        // Announce to all other clients that peer disconnected
-                        Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
+                        if (PeerInfo is not null)
+                        {
+                            Clients.Remove(PeerInfo.Value.Item1);
+                            Self.ConnectedPeers.Remove(PeerInfo.Value.Item2);
+
+                            // Announce to all other clients that peer disconnected
+                            Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
+                        }
                     }
+
+                    // Figure out why our client now times out****
+                    Console.WriteLine("[Server] Client Timed out");
+                    return;
                 }
 
-                // Figure out why our client now times out****
-                Console.WriteLine("[Server] Client Timed out");
-                return;
-            }
 
+                // Receive regular data as a test from c++
+                //int bytesRead = Client.Receive(tempBuffer, 0, tempBuffer.Length, SocketFlags.None);
+                //Console.WriteLine($"C++ data received ->\nSize: {bytesRead} - DATA: {string.Join(" ", tempBuffer.Select(x => x.ToString("X2")))}");
 
-            // Automatically read messages, and decrypt everything here if encrypted
-            byte[] Packet = Client.ReceivePacket(out PacketHeader Header);
-            if(Header.PacketAction != PacketActionType.Empty)
-            {
+                // Automatically read messages, and decrypt everything here if encrypted
+                byte[] Packet = Client.ReceivePacket(out PacketHeader Header);
 
-                // Prevent replay attacks here*
-
-                //Console.WriteLine($"[Server] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
-
-                if (Header.PacketEncryptionType != PacketEncryptionType.NONE && Packet.IsValidJSON(out PacketEncrypted encrypted) && encrypted.TryDecrypt(Packer, out byte[] Decrypted))
+                //Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
+                if (Header.PacketAction != PacketActionType.Empty)
                 {
-                    Packet = Decrypted;
+                    Console.WriteLine($"C++ data received ->\nSize: {Packet.Length} - DATA: {string.Join(" ", Packet.Select(x => x.ToString("X2")))}");
+                    Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
+                    Console.WriteLine($"data as string {Packet.ToUTF8String()}");
+                    // Prevent replay attacks here*
 
-                    //if(Header.PacketAction == PacketActionType.Ping || Header.PacketAction)
-
-                    //Console.WriteLine($"[Server] [{Header.PacketAction}] [Auto-Decrypted]: {Decrypted.ToUTF8String()}");
                     //Console.WriteLine($"[Server] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
-                    OnDataReceived.Invoke(ClientHandle, Header, Packet);
+
+                    if (Header.PacketEncryptionType != PacketEncryptionType.NONE && Packet.IsValidJSON(out PacketEncrypted encrypted) && encrypted.TryDecrypt(Packer, out byte[] Decrypted))
+                    {
+                        Packet = Decrypted;
+
+                        //if(Header.PacketAction == PacketActionType.Ping || Header.PacketAction)
+
+                        //Console.WriteLine($"[Server] [{Header.PacketAction}] [Auto-Decrypted]: {Decrypted.ToUTF8String()}");
+                        //Console.WriteLine($"[Server] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
+                        OnDataReceived.Invoke(ClientHandle, Header, Packet);
+                    }
+                    else if (Header.PacketEncryptionType == PacketEncryptionType.NONE) { OnDataReceived.Invoke(ClientHandle, Header, Packet); }
+
+                    // Invalid packet - either send it back to the client or handle it here in the peer log idk right now
+                    else { }
                 }
-                else if (Header.PacketEncryptionType == PacketEncryptionType.NONE) { OnDataReceived.Invoke(ClientHandle, Header, Packet); }
 
-                // Invalid packet - either send it back to the client or handle it here in the peer log idk right now
-                else { } 
+                // This is to test the encryption/decryption
+                //Packer.SendUTF8Packet("I am server!");
+
+
+                // Everything past here needs to be authenticated with ChaCha
+                //byte[] Packet = Client.ReceiveValidatedPacket(ref heartBeat, ref Packer, out PacketHeader Header);
+
+
+                ////heartBeat.SetLastBeat();
+
+
+
+                //if (Header.PacketAction != PacketActionType.Empty) continue;
+
+
+
             }
-
-            // This is to test the encryption/decryption
-            //Packer.SendUTF8Packet("I am server!");
-
-
-            // Everything past here needs to be authenticated with ChaCha
-            //byte[] Packet = Client.ReceiveValidatedPacket(ref heartBeat, ref Packer, out PacketHeader Header);
-
-
-            ////heartBeat.SetLastBeat();
-
-
-
-            //if (Header.PacketAction != PacketActionType.Empty) continue;
-
-
-
-        }
+        });
     }
 
-    public void HandleAuthentication(Socket Client, PacketHelper Packer)
+    public void HandleAuthentication(Socket Client, PacketHelper Packer, bool IsAuthenticating, bool IsAuthenticated)
     {
+        // Use this for auth timeout (if timeout takes more than 30s close connection)
+        DateTime dateTime = DateTime.Now;
         PacketAuthentication Auth;
 
         Console.WriteLine("[Server] handling authentication");
         
         PeerTable ConnectedPeer = new PeerTable();
-
-
 
         // Stay here until we are authenticated
         while (!IsAuthenticated)
@@ -539,8 +559,9 @@ public class BaseTCPServer : BaseServerProperties
                     case PacketActionType.Ready:
                         Console.WriteLine($"[Server] [Ready] Connection authenticated with [{ConnectedPeer.PeerId}]");
                         Packer.SendUTF8Packet("<READY>", PacketActionType.Ready, false);
-                        IsAuthenticated = true;
-                        IsAuthenticating = false;
+                        //IsAuthenticated = true;
+                        //IsAuthenticating = false;
+                        Packer.onAuthenticated.Invoke();
                         break;
                 }
             }

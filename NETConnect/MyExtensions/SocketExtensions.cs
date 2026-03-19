@@ -240,10 +240,14 @@ namespace NETConnect.MyExtensions
 
             if (Connection.Available >= PacketHeader.HeaderSize)
             {
+                Console.WriteLine("BufferSize valid data received");
+
                 byte[] TempBuffer = new byte[PacketHeader.HeaderSize];
 
                 // Peak at our data, get the length of our header and data (8 + data length)
                 Connection.Receive(TempBuffer, PacketHeader.HeaderSize, SocketFlags.None);
+
+
 
                 try
                 {
@@ -251,6 +255,15 @@ namespace NETConnect.MyExtensions
                     {
                         HeaderBytes = TempBuffer;
                         DataLength = Header.ByteLength;
+
+                        // Display our temp buffer in 
+                        Console.WriteLine($"Valid Header received: {Header.ToJSON()}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"invalid header ->\nSize: {TempBuffer.Length} - {TempBuffer.ToUTF8String()}");
+                        Console.WriteLine("Socket read invalid header data");
+                        return false;
                     }
                 }
                 catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine(Ex.ToString()); return default; } // If any error just return, as its probably not valid
@@ -267,6 +280,7 @@ namespace NETConnect.MyExtensions
             {
                 byte[] TempBuffer = new byte[PacketHeader.HeaderSize];
 
+                // NOTE: DISREGARD THE PEAK, THIS IS WHERE WE PULL OUR HEADER OUT OF THE STREAM
                 // Peak at our data, get the length of our header and data (PacketHeader.HeaderSize + data length)
                 Connection.Receive(TempBuffer, PacketHeader.HeaderSize, SocketFlags.None);
 
