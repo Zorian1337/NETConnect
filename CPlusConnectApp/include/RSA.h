@@ -13,6 +13,8 @@
 #include <vector>
 #include <stdexcept>
 #include <cstdint>
+#include "CryptUtils.h"
+
 
 #pragma comment(lib, "cryptlib.lib") // only works for windows, need linux/ps4 version to include aswell
 
@@ -32,7 +34,7 @@ namespace RSACrypt {
 
 	class RSAKeyManager {
 	private:
-		AutoSeededRandomPool rng;
+		AutoSeededRandomPool& rng = CryptUtils::rng;
 		RSA::PrivateKey PrivateKey;
 		RSA::PublicKey PublicKey;
 
