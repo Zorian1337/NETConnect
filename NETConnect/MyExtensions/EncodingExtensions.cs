@@ -42,6 +42,8 @@ public static class EncodingExtensions
 
         if (string.IsNullOrEmpty(JSON) || string.IsNullOrWhiteSpace(JSON)) return false;
 
+        Console.WriteLine($"IsValidJSON - {JSON}");
+
         try
         {
             data = JsonSerializer.Deserialize<T>(JSON, Options); 

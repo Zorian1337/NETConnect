@@ -124,8 +124,13 @@ namespace NETConnect.MyExtensions
             //Console.WriteLine(Header);
 
             ReadOnlySpan<byte> Packet = Header.WriteTo(safeBuffer);
+            ReadOnlySpan<byte> DataToSend;
 
-            if (Data.Length == 0) bytesSent = Connection.Send(Packet);
+
+            if (Data.Length == 0) {
+                DataToSend = Packet;
+                bytesSent = Connection.Send(Packet);
+            }
             else
             {
                 // Uses buffer to create a span big enough to hold both packet header and packet data
@@ -134,10 +139,12 @@ namespace NETConnect.MyExtensions
                 // Fills span with our packet data
                 Packet.CopyTo(WriterSpan);
                 Data.CopyTo(WriterSpan.Slice(Packet.Length, Data.Length));
-
-                bytesSent = Connection.Send(WriterSpan.Slice(0, Packet.Length + Data.Length)); // Only send parts of the span that we just populated
+                DataToSend = WriterSpan.Slice(0, Packet.Length + Data.Length);
+                bytesSent = Connection.Send(DataToSend); // Only send parts of the span that we just populated
             }
 
+            // Output the data we send as bytes for debugging
+            Console.WriteLine($"C# data sent ->\n[{ActionType.ToString()}] - [{EncryptionType.ToString()}] -> Size: {DataToSend.Length} - DATA: {string.Join(" ", DataToSend.ToArray().Select(x => x.ToString("X2")))}"); //.Select(x => x.ToString("X2")
 
             return bytesSent;
         }
