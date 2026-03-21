@@ -14,6 +14,8 @@
 #include <stdexcept>
 #include <cstdint>
 
+#pragma comment(lib, "cryptlib.lib") // only works for windows, need linux/ps4 version to include aswell
+
 using namespace CryptoPP;
 
 namespace RSACrypt {
@@ -28,7 +30,7 @@ namespace RSACrypt {
 
 	// Created a key manager class to prevent recreation of rng and our encryptor/decryptors
 
-	class KeyManager {
+	class RSAKeyManager {
 	private:
 		AutoSeededRandomPool rng;
 		RSA::PrivateKey PrivateKey;
@@ -44,7 +46,7 @@ namespace RSACrypt {
 	public:
 
 		// Creates our Keys and encryptors immediately for future use
-		KeyManager(RSAKeySize KeySize = RSAKeySize::VeryStrong) {
+		RSAKeyManager(RSAKeySize KeySize = RSAKeySize::VeryStrong) {
 
 			// Sets private and public keys, then inits our encryptor/decryptor
 			if (CreateKeys(KeySize, PrivateKey, PublicKey)) {
