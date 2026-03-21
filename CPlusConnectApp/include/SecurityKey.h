@@ -15,20 +15,21 @@ public:
 		GenerateLocalRSAKeys(RSAKeySize::VeryStrong);
 	}
 
-	std::unique_ptr<KeyManager> LocalRSAKeys;
-	std::unique_ptr<KeyManager> RemoteRSAPubKey;
+	std::unique_ptr<RSAKeyManager> LocalRSAKeys;
+	std::unique_ptr<RSAKeyManager> RemoteRSAPubKey;
 
 	void GenerateLocalRSAKeys(RSAKeySize RSAKeySize) {
 
 		// Init our LocalRSAKey
-		LocalRSAKeys = std::make_unique<KeyManager>(RSAKeySize);
+		LocalRSAKeys = std::make_unique<RSAKeyManager>(RSAKeySize);
 	};
 
 	void SetRemoteRSAKey() {
 	
 	}
 
-	KeyManager* GetSecurityKey(PacketEncryptionType EncryptionType, bool IsRemote = false, bool IsPrivate = false) {
+	// use a more dynamic return type, RSAKeyManager isnt going to be the only security key!!!
+	RSAKeyManager* GetSecurityKey(PacketEncryptionType EncryptionType, bool IsRemote = false, bool IsPrivate = false) {
 		return nullptr;
 	}
 };
