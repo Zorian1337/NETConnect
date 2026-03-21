@@ -42,7 +42,7 @@ void Multicast::CheckForPackets() {
 }
 
 void Multicast::OnDataReceived(UDPClient Client, std::vector<uint8_t> data) {
-	printf("%s received ->\n	%s\n", Self->PeerId.str().c_str(), UTF8Helper::ToString(data).c_str());
+	
 
 	// Attempt to parse from MulticastPacket as this is a Multicast, so all data should be in this form anyway.
 	MulticastPacket packet;
@@ -51,8 +51,11 @@ void Multicast::OnDataReceived(UDPClient Client, std::vector<uint8_t> data) {
 		return;
 	}
 
-	// Ignore packets from self - Correctly place the "ignore known clients" as this isnt the proper place to store it
-	if (Self->PeerId == packet.SenderId || Self->HasPeer(packet.SenderId)) return;
+	// Ignore packets from self
+	if (Self->PeerId == packet.SenderId) return;
+
+	// for now we are reading this here as we have no other use for the multicast
+	printf("%s received ->\n	%s\n", Self->PeerId.str().c_str(), UTF8Helper::ToString(data).c_str());
 
 
 	//printf("Packet: %s\n", packet.ToJson().c_str());
@@ -67,7 +70,7 @@ void Multicast::OnDataReceived(UDPClient Client, std::vector<uint8_t> data) {
 		// JOIN
 		case 0: {
 			// Make sure this client is new before we add them to our list
-			if (false) return; // fake out 
+			if (Self->HasPeer(packet.SenderId)) return; 
 
 			// Parse our data for our client (IP:Port)
 			std::string Data = UTF8Helper::ToString(packet.Data);
