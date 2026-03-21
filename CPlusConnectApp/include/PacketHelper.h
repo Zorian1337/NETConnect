@@ -51,7 +51,14 @@ public:
 		return bytesSent;
 	}
 
+	//std::vector<uint8_t> data(Packet.begin(), Packet.end());
 	std::vector<char> ReceivePacket(PacketHeader& Header) {
 		return PacketHeader::ReceivePacketTCP(sock, Header);
+	}
+
+	std::vector<uint8_t> ReceiveUTF8Packet(PacketHeader& Header) {
+		const auto& ch = PacketHeader::ReceivePacketTCP(sock, Header);
+		std::vector<uint8_t> data(ch.begin(), ch.end());
+		return data;
 	}
 };
