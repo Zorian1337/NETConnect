@@ -19,6 +19,34 @@ std::string base64_encode_mime(std::string const& s);
 std::string base64_decode(std::string const& s, bool remove_linebreaks = false);
 std::string base64_encode(unsigned char const*, size_t len, bool url = false);
 
+#include "cryptopp890/base64.h"
+inline std::string ToBase64(const std::vector<uint8_t>& data) {
+    using namespace CryptoPP;
+
+    std::string encoded;
+
+    // Encode to base64
+    StringSource ss(data.data(), data.size(), true,
+        new Base64Encoder(new StringSink(encoded))
+    );
+
+    // Remove newlines that Base64Encoder adds by default
+    encoded.erase(std::remove(encoded.begin(), encoded.end(), '\n'), encoded.end());
+
+    return encoded;
+}
+
+inline std::vector<uint8_t> FromBase64(const std::string& base64) {
+    using namespace CryptoPP;
+
+    std::string decoded;
+    StringSource ss(base64, true,
+        new Base64Decoder(new StringSink(decoded))
+    );
+
+    return std::vector<uint8_t>(decoded.begin(), decoded.end());
+}
+
 #if __cplusplus >= 201703L
 //
 // Interface with std::string_view rather than const std::string&

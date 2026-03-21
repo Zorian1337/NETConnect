@@ -15,6 +15,8 @@
 #include <cstdint>
 #include "CryptUtils.h"
 
+// Global
+#include "_Debugging.h"
 
 #pragma comment(lib, "cryptlib.lib") // only works for windows, need linux/ps4 version to include aswell
 
@@ -34,7 +36,7 @@ namespace RSACrypt {
 
 	class RSAKeyManager {
 	private:
-		AutoSeededRandomPool& rng = CryptUtils::rng;
+		AutoSeededRandomPool& rng = CryptUtils::GetRNG();
 		RSA::PrivateKey PrivateKey;
 		RSA::PublicKey PublicKey;
 
@@ -58,6 +60,51 @@ namespace RSACrypt {
 			// Output some error saying keys werent generated properly 
 			else {}
 		};
+
+		RSAKeyManager(const std::vector<uint8_t>& RSAKey) {
+
+			bool IsPrivateKey = false;
+
+			try {
+				RSA::PrivateKey _privKey;
+				StringSource ss(RSAKey.data(), RSAKey.size(), true);
+				_privKey.Load(ss);
+
+				if (_privKey.Validate(rng, 3)) { 
+					PrivateKey = _privKey; 
+					IsPrivateKey = true; 
+
+					// Creates our PublicKey using our PrivateKey
+					CryptoPP::RSA::PublicKey publicKey(PrivateKey);
+					PublicKey = publicKey;
+
+					encryptor = RSAES<OAEP<SHA256>>::Encryptor(PublicKey);
+					decryptor = RSAES<OAEP<SHA256>>::Decryptor(PrivateKey);
+					return;
+				}
+			}
+			catch (...) {}
+
+			if (IsPrivateKey) return;
+
+			try {
+				RSA::PublicKey _pubKey;
+				StringSource ss(RSAKey.data(), RSAKey.size(), true);
+				_pubKey.Load(ss);
+
+				if (_pubKey.Validate(rng, 3)) { 
+					// Sets our PublicKey but all we can do is Encrypt - Make sure to prevent any sort of Decrypting if our PrivateKey isnt valid!!
+					PublicKey = _pubKey; 
+					encryptor = RSAES<OAEP<SHA256>>::Encryptor(PublicKey);
+					Debugger::WriteLine("Set only our RSAPublicKey");
+
+					return; 
+				}
+			}
+			catch (...) {}
+
+			throw std::runtime_error("Failed to load RSA key: Invalid format or corrupted key");
+		}
 
 		// Creates, validates and outputs our keys for use later on
 		bool CreateKeys(RSAKeySize KeySize, RSA::PrivateKey& PrivateKey, RSA::PublicKey& PublicKey) {

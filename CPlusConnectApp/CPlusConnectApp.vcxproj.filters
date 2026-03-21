@@ -696,8 +696,23 @@
     <ClInclude Include="include\Node.h">
       <Filter>Header Files\Network\Peer</Filter>
     </ClInclude>
-    <ClInclude Include="RSA.h">
+    <ClInclude Include="include\RSA.h">
       <Filter>Header Files\Encryption\Crypt</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SecurityKey.h">
+      <Filter>Header Files\Encryption</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PacketAuthentication.h">
+      <Filter>Header Files\Network\Packet</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ChaCha.h">
+      <Filter>Header Files\Encryption\Crypt</Filter>
+    </ClInclude>
+    <ClInclude Include="include\CryptUtils.h">
+      <Filter>Header Files\Encryption</Filter>
+    </ClInclude>
+    <ClInclude Include="include\PacketEncrypted.h">
+      <Filter>Header Files\Network\Packet</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -8,13 +8,15 @@ using namespace CryptoPP;
 
 class CryptUtils {
 public:
-
 	// Original RNG seeded pool so we can pass this to everything that needs it 
-	static AutoSeededRandomPool rng;
+	static AutoSeededRandomPool& GetRNG() {
+		static CryptoPP::AutoSeededRandomPool rng;
+		return rng;
+	}
 
 	static std::vector<uint8_t> GenerateRandom(int Length) {
 		std::vector<uint8_t> nonce(Length);
-		rng.GenerateBlock(nonce.data(), nonce.size());
+		GetRNG().GenerateBlock(nonce.data(), nonce.size());
 		return nonce;
 	}
 };

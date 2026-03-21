@@ -3,7 +3,9 @@
 #include <iostream>
 #include "UTF8Helper.h"
 #include "PacketAuthentication.h"
-
+#include "ChaCha.h"
+#include "CryptUtils.h"
+#include "PacketEncrypted.h"
 
 bool TCPClient::Connect(const char* IP, int Port, bool IsBlocking) {
 
@@ -95,6 +97,9 @@ void TCPClient::CheckForPackets() {
 		if (IsFirstConnect) {
 			Debugger::WriteLine("first connect");
 			
+			// Generate ChaChaKey before we send SYN
+			Packer.EncryptionKeys.ChaChaKey = CryptUtils::GenerateRandom(32);
+
 			// Send PeerId included with quotes to make it json readable (fails to read without it) (Make custom json creator using template and arss) ToJson(args) - to pass string names and the data 
 			bytesSent = Packer.SendUTF8Packet("\"" + Self->PeerId.str() + "\"", PacketActionType::SYN, false, PacketEncryptionType::NONE);
 			IsFirstConnect = false; // this isnt being set to false 
@@ -104,6 +109,7 @@ void TCPClient::CheckForPackets() {
 
 		std::string JSON;
 		PacketAuthentication Auth;
+		PacketEncrypted EncryptedPacket;
 		if (header.PacketAction != PacketActionType::Empty) {
 			Debugger::WriteLine("[Client] packet received - [" + std::to_string(header.PacketAction) + "]");
 			switch (header.PacketAction) 
@@ -121,9 +127,42 @@ void TCPClient::CheckForPackets() {
 						Debugger::WriteLine("[Client] server auth packet received successfully");
 
 						// Sets server RSA Key
-						//Packer.EncryptionKeys.SetRemoteRSAKey();
+						Packer.EncryptionKeys.SetRemoteRSAKey(Auth.KeyData);
+						Debugger::WriteLine("[Client] set remote RSAPublicKey");
+						Auth = PacketAuthentication(PacketEncryptionType::ChaCha20Poly1305, Packer.EncryptionKeys.ChaChaKey);
+						JSON = Auth.ToJson();
+
+						const auto& encrypted = PacketEncrypted::Encrypt(Packer, UTF8Helper::ToVector(JSON), PacketEncryptionType::RSA, true);
+
+						//const auto& encrypted = Packer.EncryptionKeys.RemoteRSAPubKey->Encrypt(UTF8Helper::ToVector(JSON));
+						Packer.SendPacket(encrypted, PacketActionType::ACK, false, PacketEncryptionType::RSA);
+						//Packer.EncryptionKeys.RemoteRSAPubKey->Encrypt()
 					}
-					break;
+				break;
+				case PacketActionType::ACK: // Here we need to parse our JSON into PacketEncrypted from the server, and verify our ChaChaKey with the one they sent, then Send a server ready
+					Debugger::WriteLine("[Client] received [ACK]");
+
+					JSON = UTF8Helper::ToString(Packet);
+
+					if (PacketEncrypted::TryFromJson(JSON, EncryptedPacket)) {
+						Debugger::WriteLine("encrypted packet detected");
+
+						// Here we should be decrypting from our local key
+						const auto& decrypted = EncryptedPacket.Decrypt(Packer, false, true);
+
+						JSON = UTF8Helper::ToString(decrypted);
+						Debugger::WriteLine("Decrypted Encrypted Packet -> " + JSON);
+
+						// Compare KeyData Hash then send server ready - we're skipping hash for now
+						Packer.SendUTF8Packet("<READY>", PacketActionType::Ready, false);
+					}
+
+				break;
+				case Ready:
+					IsAuthenticating = false;
+					IsAuthenticated = true;
+					Debugger::WriteLine("[Client] [Ready] Connection authenticated with Server");
+				break;
 			}
 		}
 
@@ -133,52 +172,50 @@ void TCPClient::CheckForPackets() {
 		if (!IsAuthenticated) return;// continue; - I think we can use return again but im not sure
 	}
 
-	if (IsAuthenticated) {
-	
-	
-		//data = Packer.ReceivePacket(header); -- already grabbed at the top
+	// Everything past this is encrypted**
 
-		//Debugger::WriteLine("received header: " + header.ToJSON());
-		//Debugger::WriteLine("C# data received ->\nSize: " + Packet.size());
+	//data = Packer.ReceivePacket(header); -- already grabbed at the top
 
-		//for (char c : data) {
-		//	std::cout << std::hex << std::setw(2) << std::setfill('0')
-		//		<< static_cast<int>(static_cast<unsigned char>(c)) << " ";
-		//}
+	//Debugger::WriteLine("received header: " + header.ToJSON());
+	//Debugger::WriteLine("C# data received ->\nSize: " + Packet.size());
 
-		//Console.WriteLine($"C++ data received ->\nSize: {bytesRead} - DATA: {string.Join(" ", tempBuffer.Select(x => x.ToString("X2")))}");
+	//for (char c : data) {
+	//	std::cout << std::hex << std::setw(2) << std::setfill('0')
+	//		<< static_cast<int>(static_cast<unsigned char>(c)) << " ";
+	//}
 
-
-
-
-		// Normal message handling
+	//Console.WriteLine($"C++ data received ->\nSize: {bytesRead} - DATA: {string.Join(" ", tempBuffer.Select(x => x.ToString("X2")))}");
 
 
 
 
-		//char buffer[4096];
-		//int bytesRead;
-
-		//bytesRead = recv(sock, buffer, sizeof(buffer), 0);
-
-		//if (bytesRead > 0) {
-		//	std::vector<uint8_t> received(buffer, buffer + bytesRead);
+	// Normal message handling
 
 
 
 
-		//	PacketHeader::CreateHeader(received.length(), Type, EncryptionType)
+	//char buffer[4096];
+	//int bytesRead;
 
-		//	if (PacketHeader::ValidateHeader(received.data(), PacketHeader::HeaderSize, header)) {
-		//		Debugger::WriteLine("Somehow I validated the header!!");
+	//bytesRead = recv(sock, buffer, sizeof(buffer), 0);
+
+	//if (bytesRead > 0) {
+	//	std::vector<uint8_t> received(buffer, buffer + bytesRead);
 
 
-		//	}
-		//	else {
-		//		Debugger::WriteError("Failed to validate packet header");
-		//	}
-		//}
-	}
+
+
+	//	PacketHeader::CreateHeader(received.length(), Type, EncryptionType)
+
+	//	if (PacketHeader::ValidateHeader(received.data(), PacketHeader::HeaderSize, header)) {
+	//		Debugger::WriteLine("Somehow I validated the header!!");
+
+
+	//	}
+	//	else {
+	//		Debugger::WriteError("Failed to validate packet header");
+	//	}
+	//}
 
 	//if (header.PacketAction == PacketActionType::Empty) return;
 

@@ -20,12 +20,13 @@ public:
     std::vector<uint8_t> nonce;
     std::vector<uint8_t> tag;
 
+    ChaChaKeys() = default;
     ChaChaKeys(std::vector<uint8_t> Key, std::vector<uint8_t> nonce, std::vector<uint8_t> tag) : Key(Key), nonce(nonce), tag(tag) {}
     ChaChaKeys(std::vector<uint8_t> nonce, std::vector<uint8_t> tag) : nonce(nonce), tag(tag) {}
 };
 
 // We are using ChaCha20Poly1305
-class ChaCha {
+class ChaChaCrypt {
 public:
 
     static const size_t KEY_SIZE = 32;      // 256-bit key
@@ -33,7 +34,7 @@ public:
     static const size_t TAG_SIZE = 16;      // 128-bit authentication tag
 
 
-    AutoSeededRandomPool& rng = CryptUtils::rng;
+    AutoSeededRandomPool& rng = CryptUtils::GetRNG();
 
     static std::vector<uint8_t> Encrypt(const std::vector<uint8_t>& Key, const std::vector<uint8_t>& plaintext, ChaChaKeys& Keys, const std::vector<uint8_t>& aad = {}) {
         //std::vector<uint8_t> tag = CryptUtils::GenerateRandom(TAG_SIZE); - generated automatically

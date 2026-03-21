@@ -19,6 +19,37 @@ public:
 	PacketHelper() = default;
 	PacketHelper(Node* Peer, SocketHandler sock) : Self(Peer), sock(sock) { }
 
+	int SendPacket(std::vector<uint8_t> data, PacketActionType Type = PacketActionType::PacketData, bool IsEncryptionEnabled = false, PacketEncryptionType EncryptionType = PacketEncryptionType::NONE) {
+		int bytesSent = -1;
+
+		if (IsEncryptionEnabled) {
+			// Doesnt exist yet
+		}
+		else
+		{
+			PacketHeader header = PacketHeader::CreateHeader(data.size(), Type, EncryptionType);
+
+			// Packs the data with the header
+			std::vector<uint8_t> packet = header.Serialize();
+			packet.insert(packet.end(), data.begin(), data.end());
+
+			bytesSent = send(sock, reinterpret_cast<const char*>(packet.data()), packet.size(), 0);
+
+			if (bytesSent > 0) {
+
+				for (char c : packet) {
+					std::cout << std::hex << std::setw(2) << std::setfill('0')
+						<< static_cast<int>(static_cast<unsigned char>(c)) << " ";
+				}
+				std::cout << std::endl;
+				Debugger::WriteLine("[SendPacket] Sent: " + header.ToJSON() + "\n");
+			}
+
+		}
+
+		return bytesSent;
+	}
+
 	// Change IsEncryptionEnabled back to true after we add encryption
 	int SendUTF8Packet(std::string UTF8Data, PacketActionType Type = PacketActionType::PacketData, bool IsEncryptionEnabled = false, PacketEncryptionType EncryptionType = PacketEncryptionType::NONE) {
 		int bytesSent = -1;
@@ -49,6 +80,24 @@ public:
 		}
 		
 		return bytesSent;
+	}
+
+	int SendEncryptedPacket(std::vector<uint8_t> data, PacketEncryptionType EncryptionType, PacketActionType ActionType, bool IsAlreadyEncryptedData = true) {
+		int bytesSent = -1;
+
+		if (data.size() == 0) return bytesSent;
+
+		PacketHeader header = PacketHeader::CreateHeader(data.size(), ActionType, EncryptionType);
+
+		// Packs the data with the header
+		std::vector<uint8_t> packet = header.Serialize();
+		packet.insert(packet.end(), data.begin(), data.end());
+
+		if(IsAlreadyEncryptedData) bytesSent = send(sock, reinterpret_cast<const char*>(packet.data()), packet.size(), 0);
+		else {
+			// Setup auto encryption later
+		
+		}
 	}
 
 	//std::vector<uint8_t> data(Packet.begin(), Packet.end());

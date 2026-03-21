@@ -10,7 +10,13 @@ class PacketAuthentication {
 
 public:
 	PacketEncryptionType EncryptionType;
+
+	// When converting from string to JSON this is stripped of its base64, so we will need to add it back for RSA and any other keys that need it
 	std::vector<uint8_t> KeyData;
+
+	// Creates our default inits
+	PacketAuthentication() = default;
+	PacketAuthentication(PacketEncryptionType EncryptionType, std::vector<uint8_t> KeyData) : EncryptionType(EncryptionType), KeyData(KeyData) {}
 
 
 

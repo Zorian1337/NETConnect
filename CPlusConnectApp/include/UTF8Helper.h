@@ -18,6 +18,9 @@ public:
 		return std::string(bytes.begin(), bytes.end());
 	}
 
+	static std::vector<uint8_t> ToVector(const std::string data) {
+		return std::vector<uint8_t>(data.begin(), data.end());
+	}
 
 	struct KeyValuePair {
 		std::string key;

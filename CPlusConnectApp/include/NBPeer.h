@@ -41,6 +41,8 @@ public:
 				std::to_string(IsMainThreadRunning.load()));
 			while (IsMainThreadRunning)
 			{
+				//Debugger::WriteLine("looping");
+
 				// - Start our servers without listeners 
 
 				if (!Peer->LAN.IsServerRunning) {

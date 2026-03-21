@@ -43,6 +43,8 @@ struct MulticastPacket {
     // Static method to deserialize from JSON
 
 
+    
+    
     static bool TryFromJson(const std::string& Json, MulticastPacket& Packet) {
     
         auto* result = FromJson(Json);
@@ -51,11 +53,13 @@ struct MulticastPacket {
         else {
         
             // * Dereferences the ptr
-            Packet = *result;
+            Packet = *result; // Returns packet here as a refernce not a pointer
             delete result; // Deletes the ptr
             return true;
         }
     }
+
+    // NOTE I have no clue why multicast packet is a pointer (oh its to check if its null)
 
     static MulticastPacket* FromJson(const std::string& Json) {
         // Parse to nlohmann::ordered_json
