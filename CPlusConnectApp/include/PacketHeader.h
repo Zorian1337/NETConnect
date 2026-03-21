@@ -7,6 +7,8 @@
 #include "_Network.h"
 #include "NetUtil.h"
 #include <chrono>
+#include "json.hpp"
+
 //namespace PacketActionType {
 //
 //
@@ -132,8 +134,11 @@ public:
     static bool HasValidHeaderTCP(SocketHandler sock, PacketHeader& Header) {
         
         // Checks for our packet header size
-        if (!NetUtil::IsDataAvailable(sock, HeaderSize)) {
+        if (!NetUtil::IsDataAvailableV2(sock, HeaderSize, 50)) {
             // Not big enough to be our packet header
+
+            // Return empty header by default
+            Header = PacketHeader(0, PacketActionType::Empty, PacketEncryptionType::NONE);
             return false;
         }
 
@@ -161,9 +166,11 @@ public:
 
         // Check if we have a valid header
         if (!HasValidHeaderTCP(sock, outHeader)) {
-            Debugger::WriteError("ReceivePacketTCP: Header isnt valid");
+            //Debugger::WriteError("ReceivePacketTCP: Header isnt valid");
             return {};
         }
+
+        Debugger::WriteLine("HEADER IS VALID");
 
         // Create buffer for the data payload
         //std::vector<uint8_t> buffer(outHeader.ByteLength); - I want this as char for now
