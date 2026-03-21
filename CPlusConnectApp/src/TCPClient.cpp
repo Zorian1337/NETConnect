@@ -1,5 +1,8 @@
 #include "TCPClient.h"
 
+#include <iostream>
+#include "UTF8Helper.h"
+#include "PacketAuthentication.h"
 
 
 bool TCPClient::Connect(const char* IP, int Port, bool IsBlocking) {
@@ -79,65 +82,104 @@ void TCPClient::CheckForPackets() {
 	char buffer[4096]; // Set correct buffer size later (this will be horrible being spammed into existance, maybe store it on the client class itself)
 	PacketHeader header;
 
-
+	// Drops all empty packets immediately - if we drop packets here we can never read any actual data, drop after reading so we can do it all at once
+	std::vector<uint8_t> Packet = Packer.ReceiveUTF8Packet(header);
+	//std::vector<char> Packet = Packer.ReceivePacket(header);
+ 
 	//Continue until authentication is complete
 	if (!IsAuthenticated) IsAuthenticating = true;
 	if (IsAuthenticating) {
+		//Debugger::WriteLine("authenticating");
+
 		// Send server SYN 
 		if (IsFirstConnect) {
 			Debugger::WriteLine("first connect");
-			//Packer.SendUTF8Packet($"{Self.PeerId.ToJSON()}", PacketActionType.SYN, false);
-			bytesSent = Packer.SendUTF8Packet(Self->PeerId.str(), PacketActionType::SYN, false, PacketEncryptionType::NONE);
+			
+			// Send PeerId included with quotes to make it json readable (fails to read without it) (Make custom json creator using template and arss) ToJson(args) - to pass string names and the data 
+			bytesSent = Packer.SendUTF8Packet("\"" + Self->PeerId.str() + "\"", PacketActionType::SYN, false, PacketEncryptionType::NONE);
 			IsFirstConnect = false; // this isnt being set to false 
 			Debugger::WriteLine("IsFirstConnect value: " + std::to_string(IsFirstConnect));
 			Debugger::WriteLine("IsFirstConnect address: " + std::to_string((uint64_t)&IsFirstConnect));
 		}
 
+		std::string JSON;
+		PacketAuthentication Auth;
+		if (header.PacketAction != PacketActionType::Empty) {
+			Debugger::WriteLine("[Client] packet received - [" + std::to_string(header.PacketAction) + "]");
+			switch (header.PacketAction) 
+			{
+				case PacketActionType::SYNAck: // Receive server RSAKey, then send a ChaCha key back that we make
+					Debugger::WriteLine("[Client] received [SYNAck]");
+
+					// Data here should be of type PacketAuthentication(json format) -contains server RSAPubKey
+					JSON = UTF8Helper::ToString(Packet);
+					//Debugger::WriteLine("[Client] [SYNack] - json: " + JSON);
+
+
+					if (PacketAuthentication::TryFromJson(JSON, Auth)) 
+					{
+						Debugger::WriteLine("[Client] server auth packet received successfully");
+
+						// Sets server RSA Key
+						//Packer.EncryptionKeys.SetRemoteRSAKey();
+					}
+					break;
+			}
+		}
+
+
+
 		// Prevent continuation only if its not completed in this loop
-		if (!IsAuthenticated) return;
+		if (!IsAuthenticated) return;// continue; - I think we can use return again but im not sure
 	}
 
+	if (IsAuthenticated) {
+	
+	
+		//data = Packer.ReceivePacket(header); -- already grabbed at the top
 
-	std::vector<char> data = Packer.ReceivePacket(header);
-	if (header.PacketAction == PacketActionType::Empty) return;
-	//Debugger::WriteLine("received header: " + header.ToJSON());
-	Debugger::WriteLine("C# data received ->\nSize: " + data.size());
+		//Debugger::WriteLine("received header: " + header.ToJSON());
+		//Debugger::WriteLine("C# data received ->\nSize: " + Packet.size());
 
-	for (char c : data) {
-		std::cout << std::hex << std::setw(2) << std::setfill('0')
-			<< static_cast<int>(static_cast<unsigned char>(c)) << " ";
+		//for (char c : data) {
+		//	std::cout << std::hex << std::setw(2) << std::setfill('0')
+		//		<< static_cast<int>(static_cast<unsigned char>(c)) << " ";
+		//}
+
+		//Console.WriteLine($"C++ data received ->\nSize: {bytesRead} - DATA: {string.Join(" ", tempBuffer.Select(x => x.ToString("X2")))}");
+
+
+
+
+		// Normal message handling
+
+
+
+
+		//char buffer[4096];
+		//int bytesRead;
+
+		//bytesRead = recv(sock, buffer, sizeof(buffer), 0);
+
+		//if (bytesRead > 0) {
+		//	std::vector<uint8_t> received(buffer, buffer + bytesRead);
+
+
+
+
+		//	PacketHeader::CreateHeader(received.length(), Type, EncryptionType)
+
+		//	if (PacketHeader::ValidateHeader(received.data(), PacketHeader::HeaderSize, header)) {
+		//		Debugger::WriteLine("Somehow I validated the header!!");
+
+
+		//	}
+		//	else {
+		//		Debugger::WriteError("Failed to validate packet header");
+		//	}
+		//}
 	}
 
-	//Console.WriteLine($"C++ data received ->\nSize: {bytesRead} - DATA: {string.Join(" ", tempBuffer.Select(x => x.ToString("X2")))}");
+	//if (header.PacketAction == PacketActionType::Empty) return;
 
-
-
-
-	// Normal message handling
-
-
-
-
-	//char buffer[4096];
-	//int bytesRead;
-
-	//bytesRead = recv(sock, buffer, sizeof(buffer), 0);
-
-	//if (bytesRead > 0) {
-	//	std::vector<uint8_t> received(buffer, buffer + bytesRead);
-
-
-
-
-	//	PacketHeader::CreateHeader(received.length(), Type, EncryptionType)
-
-	//	if (PacketHeader::ValidateHeader(received.data(), PacketHeader::HeaderSize, header)) {
-	//		Debugger::WriteLine("Somehow I validated the header!!");
-
-
-	//	}
-	//	else {
-	//		Debugger::WriteError("Failed to validate packet header");
-	//	}
-	//}
 }
