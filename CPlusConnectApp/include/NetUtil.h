@@ -2,7 +2,7 @@
 
 #include "_Debugging.h"
 #include "_Network.h" // Include common network headers, and defines SocketHandler for each platform
-
+#include <chrono>
 
 
 class NetUtil
@@ -160,6 +160,8 @@ public:
 	static bool IsDataAvailable(SocketHandler sock, int requiredBytes) {
 		if (sock == INVALID_SOCKET) return false;
 
+		auto startTime = std::chrono::steady_clock::now();
+
 		char peekBuffer[1]; // Just check if ANY data exists
 		int result = recv(sock, peekBuffer, 1, MSG_PEEK);
 
@@ -176,6 +178,37 @@ public:
 				return available >= requiredBytes;
 			}
 			#endif
+		}
+		return false;
+	}
+
+	static bool IsDataAvailableV2(SocketHandler sock, int requiredBytes, int timeoutMs) {
+		if (sock == INVALID_SOCKET) return false;
+
+#ifdef _WIN32
+		WSAPOLLFD pollFd;
+#else
+		struct pollfd pollFd;
+#endif
+		pollFd.fd = sock;
+		pollFd.events = POLLIN;
+
+		
+		int result = WSAPoll(&pollFd, 1, timeoutMs);
+
+		if (result > 0 && (pollFd.revents & POLLIN)) {
+			// Check available bytes...
+#ifdef _WIN32
+			unsigned long available;
+			if (ioctlsocket(sock, FIONREAD, &available) == 0) {
+				return available >= requiredBytes;
+			}
+#else
+			int available;
+			if (ioctl(sock, FIONREAD, &available) == 0) {
+				return available >= requiredBytes;
+			}
+#endif
 		}
 		return false;
 	}
