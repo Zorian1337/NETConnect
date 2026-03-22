@@ -52,10 +52,10 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 
 | Feature | C# (.NET 9) | C++11 (Windows) | C++11 (PS4) | Description |
 |---------|:-----------:|:-------------:|:---:|-------------|
-| **Multicast Discovery** | ✅ Complete | 👂 Connects | ❓ Unknown | Automatic peer discovery on local networks |
-| **TCP Server/Client** | ✅ Complete | ⏳ Planned | ⏳ Planned | Reliable connection establishment |
-| **RSA Encryption** | ✅ Complete | ⏳ Planned | ⏳ Planned | Secure key exchange |
-| **ChaCha20-Poly1305** | ✅ Complete | ⏳ Planned | ⏳ Planned | High-performance encryption |
+| **Multicast Discovery** | ✅ Complete | 👂 Joins existing servers | ❓ Unknown | Automatic peer discovery on local networks |
+| **TCP Server/Client** | ✅ Complete | ⏳ Client Completed | ⏳ Planned | Reliable connection establishment |
+| **RSA Encryption** | ✅ Complete | ✅ Complete | ⏳ Planned | Secure key exchange |
+| **ChaCha20-Poly1305** | ✅ Complete | ✅ Complete | ⏳ Planned | High-performance encryption |
 | **OpenDHT**         | ⏳ Planned | ⏳ Planned | ⏳ Planned | Internet-scale peer discovery |
 </div>
 
@@ -64,6 +64,7 @@ NETConnect aims to revolutionize how we think about hosting servers by eliminati
 
 ### 🎯 Recent Milestone
 - **March 2, 2026:** C# version supports full multicast announcement and TCP joining. Peers can discover each other and establish secure connections automatically.
+- **March 22, 2026:** C++ version supports joining existing TCP servers as peers and automatically establishes secure connections using existing infrastructure.
 
 ---
 
