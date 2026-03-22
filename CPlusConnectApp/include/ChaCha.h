@@ -60,7 +60,7 @@ public:
         }
 
         // Setup our output data 
-        Keys = ChaChaKeys(tag, nonce); 
+        Keys = ChaChaKeys(nonce, tag);
         return ciphertext;
     }
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "PacketHeader.h"
-#include "PacketHelper.h"
+//#include "PacketHelper.h" // Removed due to PacketHelper including this header
 #include <vector>
 #include "ChaCha.h"
 #include "UTF8Helper.h"
@@ -18,11 +18,22 @@ public:
 	explicit PacketEncrypted() = default;
 	PacketEncrypted(std::vector<uint8_t> encryptedData, std::vector<uint8_t> Nonce, std::vector<uint8_t> Tag, PacketEncryptionType EncryptionType) : encryptedData(encryptedData), Nonce(Nonce), Tag(Tag), EncryptionType(EncryptionType) {};
 
-	std::vector<uint8_t> Decrypt(const PacketHelper& Packer, bool IsRemote = false, bool IsPrivate = false) {
+	//std::vector<uint8_t> Decrypt(const PacketHelper& Packer, bool IsRemote = false, bool IsPrivate = false) {
+	//	switch (EncryptionType) {
+	//		case PacketEncryptionType::RSA: return Packer.EncryptionKeys.LocalRSAKeys->Decrypt(encryptedData);
+	//		case PacketEncryptionType::ChaCha20Poly1305: return ChaChaCrypt::Decrypt(Packer.EncryptionKeys.ChaChaKey, encryptedData, Nonce, Tag);
+	//	}
+
+	//	return std::vector<uint8_t>();
+	//}
+
+	std::vector<uint8_t> Decrypt(const SecurityKey& SecurityKey, bool IsRemote = false, bool IsPrivate = false) {
 		switch (EncryptionType) {
-			case PacketEncryptionType::RSA: return Packer.EncryptionKeys.LocalRSAKeys->Decrypt(encryptedData);
-			case PacketEncryptionType::ChaCha20Poly1305: return ChaChaCrypt::Decrypt(Packer.EncryptionKeys.ChaChaKey, encryptedData, Nonce, Tag);
+		case PacketEncryptionType::RSA: return SecurityKey.LocalRSAKeys->Decrypt(encryptedData);
+		case PacketEncryptionType::ChaCha20Poly1305: return ChaChaCrypt::Decrypt(SecurityKey.ChaChaKey, encryptedData, Nonce, Tag);
 		}
+
+		return std::vector<uint8_t>();
 	}
 
 	std::string ToJson() {
@@ -73,28 +84,51 @@ public:
 		catch (const std::exception& e) { return nullptr; }
 	}
 
-	static std::vector<uint8_t> Encrypt(const PacketHelper& Packer, std::vector<uint8_t> data, PacketEncryptionType EncryptionType, bool IsRemote) {
+	//static std::vector<uint8_t> Encrypt(const PacketHelper& Packer, std::vector<uint8_t> data, PacketEncryptionType EncryptionType, bool IsRemote) {
+	//	PacketEncrypted encryptedPacket;
+	//	std::vector<uint8_t> encryptedData;
+	//	
+	//	switch (EncryptionType) {
+	//		case PacketEncryptionType::RSA: 
+	//			if (IsRemote) encryptedData = Packer.EncryptionKeys.RemoteRSAPubKey->Encrypt(data);
+	//			else encryptedData = Packer.EncryptionKeys.LocalRSAKeys->Encrypt(data);
+	//			break;
+	//		case PacketEncryptionType::ChaCha20Poly1305: 
+	//			ChaChaKeys Keys;
+	//			ChaChaCrypt::Encrypt(Packer.EncryptionKeys.ChaChaKey, data, Keys);
+	//			encryptedPacket.Nonce = Keys.nonce;
+	//			encryptedPacket.Tag = Keys.tag;
+	//			break;
+	//	}
+
+	//	encryptedPacket.EncryptionType = EncryptionType;
+	//	encryptedPacket.encryptedData = encryptedData;
+	//	
+	//	// Convert this packet to JSON, then into a vector
+	//	return UTF8Helper::ToVector(encryptedPacket.ToJson());
+	//}
+
+	static std::vector<uint8_t> Encrypt(const SecurityKey& SecurityKey, std::vector<uint8_t> data, PacketEncryptionType EncryptionType, bool IsRemote) {
 		PacketEncrypted encryptedPacket;
 		std::vector<uint8_t> encryptedData;
-		
+
 		switch (EncryptionType) {
-			case PacketEncryptionType::RSA: 
-				if (IsRemote) encryptedData = Packer.EncryptionKeys.RemoteRSAPubKey->Encrypt(data);
-				else encryptedData = Packer.EncryptionKeys.LocalRSAKeys->Encrypt(data);
-				break;
-			case PacketEncryptionType::ChaCha20Poly1305: 
-				ChaChaKeys Keys;
-				ChaChaCrypt::Encrypt(Packer.EncryptionKeys.ChaChaKey, data, Keys);
-				encryptedPacket.Nonce = Keys.nonce;
-				encryptedPacket.Tag = Keys.tag;
-				break;
+		case PacketEncryptionType::RSA:
+			if (IsRemote) encryptedData = SecurityKey.RemoteRSAPubKey->Encrypt(data);
+			else encryptedData = SecurityKey.LocalRSAKeys->Encrypt(data);
+			break;
+		case PacketEncryptionType::ChaCha20Poly1305:
+			ChaChaKeys Keys;
+			encryptedData = ChaChaCrypt::Encrypt(SecurityKey.ChaChaKey, data, Keys);
+			encryptedPacket.Nonce = Keys.nonce;
+			encryptedPacket.Tag = Keys.tag;
+			break;
 		}
 
 		encryptedPacket.EncryptionType = EncryptionType;
 		encryptedPacket.encryptedData = encryptedData;
-		
+
 		// Convert this packet to JSON, then into a vector
 		return UTF8Helper::ToVector(encryptedPacket.ToJson());
 	}
-
 };

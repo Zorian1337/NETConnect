@@ -38,7 +38,7 @@ public class BaseTCPServer : BaseServerProperties
     // Server itself
     public event Action<Socket> OnClientConnected;
     public event Action<Socket> OnClientDisconnected;
-    public event Action<Socket, PacketHelper, bool, bool> OnAuthenticationRequested;
+    public event Action<Socket, PacketHelper> OnAuthenticationRequested;
     public event Action<ServerClientHandle, PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
 
     // Peer related - this can probably hold the clienthandle and the peer side 
@@ -345,8 +345,8 @@ public class BaseTCPServer : BaseServerProperties
     {
         Task.Run(() =>
         {
-            bool IsAuthenticating = false;
-            bool IsAuthenticated = false;
+            //bool IsAuthenticating = false;
+            //bool IsAuthenticated = false;
 
             string ClientEndPoint = client.RemoteEndPoint.ToString();
             Console.WriteLine($"[SERVER] Client connected to the server [{ClientEndPoint}]");
@@ -362,8 +362,8 @@ public class BaseTCPServer : BaseServerProperties
             var SelfPeer = Self;
 
             HeartBeat heartBeat = new HeartBeat(ref SelfPeer);
-            heartBeat.IsEnabled = false; // Disabled due to c++ not having support yet
-            IsAuthenticated = true; // Enabled so we can skip auth for c++
+            //heartBeat.IsEnabled = false; // Disabled due to c++ not having support yet
+            //IsAuthenticated = false; // Enabled so we can skip auth for c++ - disabled now so we can build the auth system
 
             // Creates a client handle 
             ServerClientHandle ClientHandle = new ServerClientHandle(client, Buffers, DateTime.UtcNow, ref ClientToken);
@@ -376,14 +376,14 @@ public class BaseTCPServer : BaseServerProperties
 
             // Use ClientHandle to control all aspects of the connection (I believe I wired it that way, that or PacketHelper)
 
-            Action onAuthenticated = () =>
-            {
-                IsAuthenticated = true;
-                IsAuthenticating = false;
-                Console.WriteLine($"[Server] Client {ClientEndPoint} authenticated successfully");
-            };
+            //Action onAuthenticated = () =>
+            //{
+            //    IsAuthenticated = true;
+            //    IsAuthenticating = false;
+            //    Console.WriteLine($"[Server] Client {ClientEndPoint} authenticated successfully");
+            //};
 
-            Packer.onAuthenticated = onAuthenticated;
+            //Packer.onAuthenticated = onAuthenticated;
             //bool IsAuthenticated = false; // scraping auth for now
             //bool HasSentSYN = false;
 
@@ -399,18 +399,19 @@ public class BaseTCPServer : BaseServerProperties
 
 
 
-                if (IsAuthenticating) continue;
-                if (!IsAuthenticated)
+                if (Packer.IsAuthenticating) continue;
+                if (!Packer.IsAuthenticated)
                 {
-                    IsAuthenticating = true;
-                    OnAuthenticationRequested.Invoke(Client, Packer, IsAuthenticating, IsAuthenticated);
+                    Packer.IsAuthenticating = true;
+                    OnAuthenticationRequested.Invoke(Client, Packer);
 
                 }
+                //Console.WriteLine("FULLY OUT OF AUTHENTICATION");
 
                 //Console.WriteLine("Client passed authentication");
                 //ClientHandle.PacketHelper.SendUTF8Packet("testing");
 
-                //Check for ping every so often
+                //Check for ping every so often - client doesnt need to respond but they at least need to receive the data (if they dont respond to ping we cant check the latency)
                 if (!heartBeat.TrySendHeartBeat(ref Packer, out bool IsDisconnected) && IsDisconnected && !heartBeat.FirstBeat)
                 {
                     ClientToken.Cancel();
@@ -429,7 +430,7 @@ public class BaseTCPServer : BaseServerProperties
                         }
                     }
 
-                    // Figure out why our client now times out****
+                    // Figure out why our client now times out**** - idk why this is here (why would I question why it timed out)
                     Console.WriteLine("[Server] Client Timed out");
                     return;
                 }
@@ -488,7 +489,7 @@ public class BaseTCPServer : BaseServerProperties
         });
     }
 
-    public void HandleAuthentication(Socket Client, PacketHelper Packer, bool IsAuthenticating, bool IsAuthenticated)
+    public void HandleAuthentication(Socket Client, PacketHelper Packer)
     {
         // Use this for auth timeout (if timeout takes more than 30s close connection)
         DateTime dateTime = DateTime.Now;
@@ -499,7 +500,7 @@ public class BaseTCPServer : BaseServerProperties
         PeerTable ConnectedPeer = new PeerTable();
 
         // Stay here until we are authenticated
-        while (!IsAuthenticated)
+        while (!Packer.IsAuthenticated)
         {
             byte[] Packet = Client.ReceivePacket(out PacketHeader Header);
             if (Header.PacketAction != PacketActionType.Empty)
@@ -508,6 +509,7 @@ public class BaseTCPServer : BaseServerProperties
                 {
                     case PacketActionType.SYN: // SYN from client - client sends peer list
                         //Console.WriteLine("[Server] [SYN] received");
+
 
                         if(Packet.IsValidJSON(out Guid PeerId))
                         {
@@ -559,9 +561,9 @@ public class BaseTCPServer : BaseServerProperties
                     case PacketActionType.Ready:
                         Console.WriteLine($"[Server] [Ready] Connection authenticated with [{ConnectedPeer.PeerId}]");
                         Packer.SendUTF8Packet("<READY>", PacketActionType.Ready, false);
-                        //IsAuthenticated = true;
-                        //IsAuthenticating = false;
-                        Packer.onAuthenticated.Invoke();
+                        Packer.IsAuthenticated = true;
+                        Packer.IsAuthenticating = false;
+                        //Packer.onAuthenticated.Invoke();
                         break;
                 }
             }

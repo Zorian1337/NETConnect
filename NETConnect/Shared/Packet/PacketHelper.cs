@@ -32,7 +32,9 @@ public class PacketHelper
     public SecurityKey EncryptionKeys { get; private set; }
 
 
-    public Action onAuthenticated { get; set; }
+    //public Action onAuthenticated { get; set; }
+    public bool IsAuthenticated { get; set; } = false;
+    public bool IsAuthenticating { get; set; } = false;
 
     /// <summary>
     /// used for the client version
