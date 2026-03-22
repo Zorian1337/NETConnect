@@ -21,13 +21,16 @@ public:
 	PacketHelper() = default;
 	PacketHelper(Node* Peer, SocketHandler sock) : Self(Peer), sock(sock) { }
 
-	int SendPacket(std::vector<uint8_t> data, PacketActionType Type = PacketActionType::PacketData, bool IsEncryptionEnabled = false, PacketEncryptionType EncryptionType = PacketEncryptionType::NONE) {
+	int SendPacket(std::vector<uint8_t> data, PacketActionType Type = PacketActionType::PacketData, bool IsEncryptionEnabled = true, PacketEncryptionType EncryptionType = PacketEncryptionType::NONE) {
 		int bytesSent = -1;
 
-
-
 		// If encryption is enabled, we will auto encrypt and decrypt our messages
-		if (IsEncryptionEnabled) bytesSent = SendEncryptedPacket(data, EncryptionType, Type, false);
+		// Depends on if EncryptionType is not set to null otherwise it'll default to no encryption (our global settings will override this to where if we dont want encryption we have to set EncryptionEnabled to false)
+		if (IsEncryptionEnabled) {
+			if (EncryptionType != PacketEncryptionType::NONE) bytesSent = SendEncryptedPacket(data, EncryptionType, Type, false);
+			//else if - Add support for settings to disable encryption
+			else return SendPacket(data, Type, false, EncryptionType); // Basically sends to non encrypted data line
+		}
 		else // unencrypted data by default
 		{
 			Debugger::WriteLine("SendPacket -> Creating header");
@@ -56,13 +59,11 @@ public:
 	}
 
 	// Change IsEncryptionEnabled back to true after we add encryption
-	int SendUTF8Packet(std::string UTF8Data, PacketActionType Type = PacketActionType::PacketData, bool IsEncryptionEnabled = false, PacketEncryptionType EncryptionType = PacketEncryptionType::NONE){
+	int SendUTF8Packet(std::string UTF8Data, PacketActionType Type = PacketActionType::PacketData, bool IsEncryptionEnabled = true, PacketEncryptionType EncryptionType = PacketEncryptionType::NONE){
 		// Returns base send packet as everything in this should be the same or at least handled similarly
 		return SendPacket(UTF8Helper::ToVector(UTF8Data), Type, IsEncryptionEnabled, EncryptionType);
 	}
 	
-
-
 	int SendEncryptedPacket(std::vector<uint8_t> data, PacketEncryptionType EncryptionType, PacketActionType ActionType, bool IsAlreadyEncryptedData = true) {
 		int bytesSent = -1;
 

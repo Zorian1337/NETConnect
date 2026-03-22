@@ -27,6 +27,13 @@ public:
 	//	return std::vector<uint8_t>();
 	//}
 
+	bool TryDecrypt(const SecurityKey& SecurityKey, std::vector<uint8_t>& decrypted, bool IsRemote = false, bool IsPrivate = false) {
+		decrypted = Decrypt(SecurityKey, IsRemote, IsPrivate);
+
+		if (!decrypted.empty()) return true;
+		else return false;
+	}
+
 	std::vector<uint8_t> Decrypt(const SecurityKey& SecurityKey, bool IsRemote = false, bool IsPrivate = false) {
 		switch (EncryptionType) {
 		case PacketEncryptionType::RSA: return SecurityKey.LocalRSAKeys->Decrypt(encryptedData);

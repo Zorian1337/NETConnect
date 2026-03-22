@@ -14,7 +14,10 @@
 #include "PacketHelper.h"
 #include "json.hpp"
 #include <iostream> // for hex
+#include "HeartBeat.h"
+
 class Node;
+//class HeartBeat;
 
 class TCPClient
 {
@@ -30,7 +33,7 @@ public:
 	PacketHelper Packer;
 
 	explicit TCPClient() : Self(nullptr) {}
-	explicit TCPClient(Node* Peer, xg::Guid RemotePeerId) : Self(Peer), RemotePeerId(RemotePeerId){ }
+	explicit TCPClient(Node* Peer, xg::Guid RemotePeerId) : Self(Peer), RemotePeerId(RemotePeerId)  { }
 
 	sockaddr_in serverAddr{};
 
@@ -41,7 +44,7 @@ public:
 	std::atomic<bool> IsAuthenticating = false;
 	std::atomic<bool> IsAuthenticated = false;
 	std::atomic<bool> IsFirstConnect = true;
-
+	HeartBeat Heartbeat{};
 
 	Event<SocketHandler> OnConnected;
 	Event<SocketHandler, std::vector<uint8_t>> OnDataReceived;
@@ -51,5 +54,6 @@ public:
 
 	// Moved to .cpp so we can access Node
 	void CheckForPackets();
+	void HandleUTF8Packet(PacketHeader Header, std::vector<uint8_t> Packet);
 };
 

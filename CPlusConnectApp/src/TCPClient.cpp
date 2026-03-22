@@ -7,6 +7,9 @@
 #include "CryptUtils.h"
 #include "PacketEncrypted.h"
 
+#include "HeartBeat.h"
+//class HeartBeat;
+
 bool TCPClient::Connect(const char* IP, int Port, bool IsBlocking) {
 
 	//  Validate Port here
@@ -74,6 +77,7 @@ bool TCPClient::Connect(const char* IP, int Port, bool IsBlocking) {
 	Debugger::WriteLine("[Client] Server: " + std::string(IP) + " - Me: [N/A] - ClientId: " + Self->PeerId.str().c_str());
 
 	Packer = PacketHelper(Self, sock);
+	Heartbeat = HeartBeat(Self, &Packer);
 	return IsClientConnected;
 }
 
@@ -82,10 +86,10 @@ void TCPClient::CheckForPackets() {
 
 	int bytesSent;
 	char buffer[4096]; // Set correct buffer size later (this will be horrible being spammed into existance, maybe store it on the client class itself)
-	PacketHeader header;
+	PacketHeader Header;
 
 	// Drops all empty packets immediately - if we drop packets here we can never read any actual data, drop after reading so we can do it all at once
-	std::vector<uint8_t> Packet = Packer.ReceiveUTF8Packet(header);
+	std::vector<uint8_t> Packet = Packer.ReceiveUTF8Packet(Header);
 	//std::vector<char> Packet = Packer.ReceivePacket(header);
  
 	//Continue until authentication is complete
@@ -110,9 +114,9 @@ void TCPClient::CheckForPackets() {
 		std::string JSON;
 		PacketAuthentication Auth;
 		PacketEncrypted EncryptedPacket;
-		if (header.PacketAction != PacketActionType::Empty) {
-			Debugger::WriteLine("[Client] packet received - [" + std::to_string(header.PacketAction) + "]");
-			switch (header.PacketAction) 
+		if (Header.PacketAction != PacketActionType::Empty) {
+			Debugger::WriteLine("[Client] packet received - [" + std::to_string(Header.PacketAction) + "]");
+			switch (Header.PacketAction)
 			{
 				case PacketActionType::SYNAck: // Receive server RSAKey, then send a ChaCha key back that we make
 					Debugger::WriteLine("[Client] received [SYNAck]");
@@ -165,6 +169,9 @@ void TCPClient::CheckForPackets() {
 					IsAuthenticating = false;
 					IsAuthenticated = true;
 					Debugger::WriteLine("[Client] [Ready] Connection authenticated with Server");
+
+					// We are returning here because we already received the message, any extra handling
+					return; 
 				break;
 			}
 		}
@@ -175,14 +182,50 @@ void TCPClient::CheckForPackets() {
 		if (!IsAuthenticated) return;// continue; - I think we can use return again but im not sure
 	}
 
+	// Handle heartbeat here
+	bool IsDisconnected; 
+	// I got no clue how this times out if if returned true from TrySendHeartBeat (thats supposed to mean it was sent successfully) - this might be backwards
+	// Looking at the c# version again, it does have a ! after the method so I think its working that way
+	if ((!Heartbeat.TrySendHeartBeat(IsDisconnected)) && IsDisconnected && !Heartbeat.FirstBeat) {
+		// Requires something to cancel the loop (probably got a bool for IsServerRunning)
+		IsClientConnected = false;
+
+		// Requires us to create a state of the server/clients operational mode
+
+		// Output Client timed out
+		Debugger::WriteLine("[Client] Timed out");
+		return;
+	}
+
 	// Skip null packets
-	if (header.PacketAction == PacketActionType::Empty) return;
+	if (Header.PacketAction == PacketActionType::Empty) return;
 
 	// Everything past this is encrypted**
 	std::string JSON = UTF8Helper::ToString(Packet);
 
 	Debugger::WriteLine("[Client] received => " + JSON);
 
+	PacketEncrypted EncryptedPacket;
+	std::vector<uint8_t> decrypted;
+	if (PacketEncrypted::TryFromJson(JSON, EncryptedPacket) && EncryptedPacket.TryDecrypt(Packer.EncryptionKeys, decrypted, true, true)) {
+		JSON = UTF8Helper::ToString(decrypted);
+		Debugger::WriteLine("Decrypted Data successfully -> " + JSON);
+		HandleUTF8Packet(Header, decrypted);
+	}
+	else Debugger::WriteError("Failed to decrypt data");
+	
+	return; // cut this off for now, probably will use it again for testing idk either way everything should be routed through this handler
+
+
 	// testing sending encrypted messages
 	Packer.SendUTF8Packet("testing encrypted messaging!!", PacketActionType::PacketData, true, PacketEncryptionType::ChaCha20Poly1305);
+}
+
+// named it this just so we can prepare for the future, since there will be other types of data being sent 
+void TCPClient::HandleUTF8Packet(PacketHeader Header, std::vector<uint8_t> Packet) {
+	// Handle ping/pong here for now 
+	switch (Header.PacketAction) {
+	case PacketActionType::Ping: Packer.SendUTF8Packet("", PacketActionType::Pong); break;
+	}
+
 }
