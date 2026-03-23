@@ -36,6 +36,11 @@ public class BaseTCPServer : BaseServerProperties
     public PeerTable MyPeerTable { get; set; }
 
     // Server itself
+
+    /// <summary>
+    /// Event for the first connect between the server and a client
+    /// At this point the client isnt a peer, nor has it setup any encryption
+    /// </summary>
     public event Action<Socket> OnClientConnected;
     public event Action<Socket> OnClientDisconnected;
     public event Action<Socket, PacketHelper> OnAuthenticationRequested;
@@ -44,7 +49,11 @@ public class BaseTCPServer : BaseServerProperties
     // Peer related - this can probably hold the clienthandle and the peer side 
     public event Action<ServerClientHandle, PeerTable> OnPeerConnected;
 
+    public event Action<string> OnDebugMessage;
 
+    /// <summary>
+    /// We only want to use this for the clients themselves, if we want anything Peer related use Connected Clients
+    /// </summary>
     public List<ServerClientHandle> Clients { get; set; } = new List<ServerClientHandle>();
 
     public BaseTCPServer(IPAddress Address, int Port)
@@ -60,6 +69,8 @@ public class BaseTCPServer : BaseServerProperties
         this.Address = Address;
         this.Port = Port;
     }
+
+    public void InvokeDebugMessage(string Message) => OnDebugMessage?.Invoke(Message);
 
     public void StartServer()
     {
@@ -104,29 +115,37 @@ public class BaseTCPServer : BaseServerProperties
                 // Check if multicast is valid then send announcement
                 if(Self is not null)
                 {
+                    //OnDebugMessage?.Invoke("Self is not null");
+
                     // Transmit server IP and Port to connect to it over local net
                     IPEndPoint Point = ((IPEndPoint)SocketServer.LocalEndPoint);//.ToString();
-
+                    //OnDebugMessage?.Invoke("Self is not null");
                     // This is where the server can join the multicast
                     var SelfPeer = Self;
-
+                    //OnDebugMessage?.Invoke("Self is not null");
                     Self.Multicast = new Multicast(ref SelfPeer);
-                    Self.Multicast.ReadMulticast();
+                    Self.Multicast.ReadMulticast(); // blocks
 
                     ServerAddress = $"{NetworkUtils.GetLocalLanIp()}:{Point.Port}";
-                    Console.Title = $"Server: [{ServerAddress}]";
+                    
+                    // This breaks when we are using it in something other than a console
+                    //if (Environment.UserInteractive && Console.Title != null) Console.Title = $"Server: [{ServerAddress}]";
 
                     // Create Peer Table here - Might not update the peerId with it as its set within multiicast but will need change anyway later, as thats not a good way to set it
                     MyPeerTable = new PeerTable(ref SelfPeer, NetworkUtils.GetLocalLanIp().ToString(), Point.Port); // this might need fixed, port here and port in multicast are conflicting
                     //(idr if I want this to list the server connection) im pretty sure I do, as I need to have clients connect to the server (so having the server informationa as the peer makes sense)
 
 
+                    //if (Self.TCPServer.ServerToken is null) OnDebugMessage?.Invoke($"ServerToken is null");
+                    //else OnDebugMessage?.Invoke($"ServerToken is not null");
+
                     Task.Run(async () =>
                     {
+                        //OnDebugMessage?.Invoke($"BEFORE Advertising to the multicast : {Self.TCPServer.ServerToken.IsCancellationRequested}"); // 
                         // Multicast broadcasting of the server (only way we can get clients for now)
                         while (!Self.TCPServer.ServerToken.IsCancellationRequested)
                         {
-
+                            //OnDebugMessage?.Invoke($"Advertising to the multicast as {ServerAddress}");
                             Self.Multicast.SendUTF8Message(ServerAddress, MulticastAction.Join);
                             //int DelayPerSecond = 
                             //await Task.Delay((60 * 1000) * 1);
@@ -134,8 +153,9 @@ public class BaseTCPServer : BaseServerProperties
                         }
                     });
 
-                    // Using this for informational purposes related to peers
-                    //Task.Run(() => UpdatePeerDisplay());
+                   //Using this for informational purposes related to peers
+
+                   Task.Run(() => UpdatePeerDisplay());
                 }
 
                 // Handles searching for clients in another thread...
@@ -144,11 +164,12 @@ public class BaseTCPServer : BaseServerProperties
                     // Searches for clients until the token is set to get ready to cancel
                     while (!ServerToken.IsCancellationRequested)
                     {
-                        Console.WriteLine("waiting on new clients");
+                        //OnDebugMessage?.Invoke($"ServerToken is not null or cancel requested");
+                        //Console.WriteLine("waiting on new clients");
                         //Console.WriteLine("Waiting on new client connections...\n");
                         Socket Client = SocketServer.Accept();
 
-                        Console.WriteLine("new client to connect");
+                        //Console.WriteLine("new client to connect");
                         // Find client then immediately handle it elsewhere for performance
                         OnClientConnected?.Invoke(Client);
                     }
@@ -163,10 +184,10 @@ public class BaseTCPServer : BaseServerProperties
     {
         while (!ServerToken.IsCancellationRequested)
         {
-            Thread.Sleep(1);
+            Thread.Sleep(5000);
 
             //Clear console for a clean display while doing peer mapping
-            Console.Clear();
+            //Console.Clear();
 
             Console.WriteLine($"PeerId: {Self.PeerId} - OperationMode: {Self.OperationMode}\n");
 
@@ -370,7 +391,7 @@ public class BaseTCPServer : BaseServerProperties
             PacketHelper Packer = new PacketHelper(ref Client, ref SelfPeer, ref ClientHandle, ref _ServerToken);
             ClientHandle.AddPacketHelper(ref Packer);
             ClientHandle.AddHeartBeat(ref heartBeat);
-            Clients.Add(ClientHandle);
+            Clients.Add(ClientHandle); // Remember to update client Id
 
 
 
@@ -426,9 +447,13 @@ public class BaseTCPServer : BaseServerProperties
                             Self.ConnectedPeers.Remove(PeerInfo.Value.Item2);
 
                             // Announce to all other clients that peer disconnected
-                            Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
+                            //Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
+                            Self.Broadcast(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave);
                         }
                     }
+                    else Clients.Remove(ClientHandle);
+
+
 
                     // Figure out why our client now times out**** - idk why this is here (why would I question why it timed out)
                     Console.WriteLine("[Server] Client Timed out");
@@ -446,9 +471,9 @@ public class BaseTCPServer : BaseServerProperties
                 //Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
                 if (Header.PacketAction != PacketActionType.Empty)
                 {
-                    Console.WriteLine($"C++ data received ->\nSize: {Packet.Length} - DATA: {string.Join(" ", Packet.Select(x => x.ToString("X2")))}");
-                    Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
-                    Console.WriteLine($"data as string {Packet.ToUTF8String()}");
+                    //Console.WriteLine($"C++ data received ->\nSize: {Packet.Length} - DATA: {string.Join(" ", Packet.Select(x => x.ToString("X2")))}");
+                    //Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
+                    //Console.WriteLine($"data as string {Packet.ToUTF8String()}");
                     // Prevent replay attacks here*
 
                     //Console.WriteLine($"[Server] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
@@ -513,7 +538,11 @@ public class BaseTCPServer : BaseServerProperties
 
                         if(Packet.IsValidJSON(out Guid PeerId))
                         {
-                            Console.WriteLine($"[Server] received valid [SYN] from {PeerId}");
+                            //Console.WriteLine($"[Server] received valid [SYN] from {PeerId}");
+
+                            // If client can find the handle with its socket set the peerId (it should be able to)
+                            ServerClientHandle? Handle = Clients.Find(x => x.Connection == Client);
+                            if (Handle is not null) Handle.Id = PeerId;
 
                             ConnectedPeer.PeerId = PeerId;
 
@@ -538,15 +567,15 @@ public class BaseTCPServer : BaseServerProperties
                         else Console.WriteLine("Invalid SYN");
                         break;
                     case PacketActionType.ACK:
-                        Console.WriteLine($"[Server] received [ACK] from {ConnectedPeer.PeerId}");
+                        //Console.WriteLine($"[Server] received [ACK] from {ConnectedPeer.PeerId}");
 
                         if(Packet.IsValidJSON(out PacketEncrypted encrypted))
                         {
-                            Console.WriteLine($"[Server] [ACK] successfully parsed into encrypted packet");
+                            //Console.WriteLine($"[Server] [ACK] successfully parsed into encrypted packet");
 
                             if(encrypted.TryDecryptInto(Packer.EncryptionKeys.LocalRSAKeys.PrivateKey, out Auth))
                             {
-                                Console.WriteLine($"[Server] [ACK] successfully decrypted packet");
+                                //Console.WriteLine($"[Server] [ACK] successfully decrypted packet");
                                 Packer.EncryptionKeys.ChaChaKey = Auth.KeyData;
                                 Packer.SendUTF8Packet(Auth.ToJSON(), PacketActionType.ACK, true, PacketEncryptionType.ChaCha20Poly1305);
                                 
@@ -612,14 +641,14 @@ public class BaseTCPServer : BaseServerProperties
         }
     }
 
-    public void InvokeOnPeerConnected(ServerClientHandle ClientHandle, PeerTable initPeer) => OnPeerConnected.Invoke(ClientHandle, initPeer);
+    public void InvokeOnPeerConnected(ServerClientHandle ClientHandle, PeerTable initPeer) => OnPeerConnected?.Invoke(ClientHandle, initPeer);
 
     public void HandleDataReceived(ServerClientHandle Client, PacketHeader Header, ReadOnlySpan<byte> Data)
     {
         byte[] DATA = Data.ToArray();
         string UTF8 = DATA.ToUTF8String();
         // Print the message that was received from the client
-        Console.WriteLine($"Server Received => [{Header.PacketAction}] Encryption: [{Header.PacketEncryptionType}] \"{UTF8}\""); //Client.Buffers.CharBuffer
+        //Console.WriteLine($"Server Received => [{Header.PacketAction}] Encryption: [{Header.PacketEncryptionType}] \"{UTF8}\""); //Client.Buffers.CharBuffer
         HandleAction(Header, DATA, Client.PacketHelper, Client.HeartBeat);
 
     } 

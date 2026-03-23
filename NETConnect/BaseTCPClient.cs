@@ -98,169 +98,6 @@ public class BaseTCPClient
         return false;
     }
 
-    public bool TLSV2(Socket Server, bool IsAuthorized, PacketHelper Packer)
-    {
-        // Might need to rework this to where it doesnt return anything if its not valid (FIX: set default data length to -1 to symbolize not valid data)
-        byte[] Packet = Server.ReceivePacket(out PacketHeader Header);
-
-       
-
-        // Ignore packet if nothing was read
-        if (Header.PacketAction != PacketActionType.Empty)
-        {
-            //Console.WriteLine($"[Client] [{Header.PacketAction}] [{Header.ToJSON()}]");
-            string JSON = string.Empty;
-            PacketAuthentication Auth;
-
-
-            // Handle only Authorization related requests (and ping just because there is no system for it globally) - (FIX: automatically handle it while we are reading packet data)
-
-            switch (Header.PacketAction)
-            {
-                case PacketActionType.SYN:
-
-                    //Console.WriteLine("[Client] received [SYN] froms server");
-                    JSON = Packet.ToUTF8String();
-                    // Receives PacketAuthorization from server containing which data it is to be set as
-
-                    if (JSON.IsValidJSON(out Auth))
-                    {
-                        //Console.WriteLine($"[Client] Valid AuthPacket [SYN]\n{JSON}");
-                        switch (Auth.EncryptionType)
-                        {
-                            case PacketEncryptionType.RSA: // Sets remote RSAPubKey to start other auths
-
-                                Packer.EncryptionKeys.SetRemoteRSAKey(Auth.KeyData);
-
-                                // Generate our keys for RSA based on the servers key
-                                int RemoteKeySize = RSACrypt.GetPKCS8KeySize(Auth.KeyData, false);
-                                Packer.EncryptionKeys.UpdateLocalRSAKeys(RemoteKeySize, RSACrypt.CreateExport(RemoteKeySize));
-
-                                // Sends server back our RSAPubKey
-                                Auth = new PacketAuthentication()
-                                {
-                                    EncryptionType = PacketEncryptionType.RSA,
-                                    KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
-                                };
-
-                                JSON = Auth.ToJSON();
-
-                                Packer.SendUTF8Packet(JSON, PacketActionType.SYNAck); 
-                                //Console.WriteLine($"[Client] Sent (AuthPacket-RSAPubkey)SYNAck to Server");
-                                break;
-                        } 
-                    }
-                    break;
-                case PacketActionType.SYNAck:
-                    //Console.WriteLine($"[Client] received [SYNAck] - EncryptionType: {Header.PacketEncryptionType}");
-                    JSON = Packet.ToUTF8String();
-
-                    //Console.WriteLine(JSON);
-                    if (JSON.IsValidJSON(out PacketEncrypted Encrypted))
-                    {
-                        //Console.WriteLine("[Client] [SYNAck] valid PacketEncrypted");
-                        //Console.WriteLine(Encrypted.ToJSON());
-                        // Attempt decryption based on stored keys
-                        // Then pack the key we actually want to transport - ChaCha 
-                        switch (Encrypted.EncryptionType)
-                        {
-                            case PacketEncryptionType.RSA:
-                                // After we confirm decryption, we can send the key we want to share directly to ACK
-
-                                // seems our 
-                                byte[] Decrypted = Encrypted.encryptedData.DecryptRSA(Packer.EncryptionKeys.LocalRSAKeys.PrivateKey);
-                                if(Decrypted.ToUTF8String().IsValidJSON(out bool IsEncrypted))
-                                {
-                                    //Console.WriteLine($"IsEncrypted: {IsEncrypted}");
-
-                                    Packer.EncryptionKeys.ChaChaKey = CryptUtils.GenerateRandomData(32);
-                                    //Console.WriteLine($"[Client] ChaChaKey I generated {Packer.EncryptionKeys.ChaChaKey.ToJSON()}");
-
-                                    Auth = new PacketAuthentication()
-                                    {
-                                        EncryptionType = PacketEncryptionType.ChaCha20Poly1305,
-                                        KeyData = Packer.EncryptionKeys.ChaChaKey
-                                    };
-
-                                    //Console.WriteLine(Auth.ToJSON());
-
-
-                                    // Send ChaCha encrypted with RSA
-                                    if(PacketEncrypted.TryEncryptSend(Auth.ToJSON().ToUTF8Byte(), PacketEncryptionType.RSA, PacketActionType.ACK, Packer))
-                                    {
-                                        //Console.WriteLine("[Client] [SYNAck] sent RSAEncrypted ChaCha key to [Ack]");
-                                    }
-
-                                }
-                                // Report back to the person who sent this and try to reexchange keys 
-                                else
-                                {
-
-                                }
-                                break;
-                        }
-                    }
-                    //else Console.WriteLine("[Client] [SYNAck] invalid PacketEncrypted");
-                        break;
-                case PacketActionType.ACK:
-                    //Console.WriteLine($"[Client] [ACK] [{Header.PacketEncryptionType}]");
-
-                    PacketEncrypted encrypted = Packet.FromUTF8IntoJSON<PacketEncrypted>();
-
-                    switch (Header.PacketEncryptionType)
-                    {
-                        case PacketEncryptionType.RSA:
-                            break;
-
-                        case PacketEncryptionType.ChaCha20Poly1305:
-
-
-                            //Console.WriteLine($"[Client] ChaChaKey {Packer.EncryptionKeys.ChaChaKey.ToHashString()}");
-
-                            if(encrypted.TryDecryptInto(Packer.EncryptionKeys.ChaChaKey, out Auth))
-                            {
-                                //Console.WriteLine("valid auth packet");
-                                //Console.WriteLine($"[Client] ChaChaKey from server {Auth.KeyData.ToHashString()}");
-
-                                // Compare Keys, if same authenticate
-                                if (Packer.EncryptionKeys.ChaChaKey.ToHashString() == Auth.KeyData.ToHashString())
-                                {
-                                    Console.WriteLine("[Client] has authenticated the connection");
-                                    IsAuthorized = true;
-                                }
-                            }
-                           // else Console.WriteLine("[Client] failed to decrypt into AuthPacket");
-                                break;
-                    }
-
-                    //encrypted.TryDecryptInto<PacketAuthentication>()
-                    break;
-
-            }
-        }
-
-        return IsAuthorized;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     public void HandleConnected()
     {
         string ClientEndPoint = SocketClient.RemoteEndPoint.ToString();
@@ -320,7 +157,7 @@ public class BaseTCPClient
                             Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
                         }
                     }
-
+                    else Self.TCPServer.Clients.Remove(Self.TCPServer.Clients.Find(x => x.Connection == Client));
 
                     Console.WriteLine("[Client] Timed out");
                     return;
@@ -357,96 +194,17 @@ public class BaseTCPClient
 
                 //Console.WriteLine($"[Client] {Self.Settings.ToJSON()} {Self.Settings.IsEncryptionEnabled}");
 
-
-
-
-
-                #region OLD
-                //if (!IsAuthenticated) { IsAuthenticated = TLSV2(Client, IsAuthenticated, Packer); heartBeat.SetLastBeat(); }
-                //else
-                //{
-                //    Console.WriteLine($"[Client] IsAuthenticated: {IsAuthenticated}");
-
-                //    byte[] Packet = Client.ReceiveValidatedPacket(ref heartBeat, ref _Packer, out PacketHeader Header);
-                //    //byte[] Packet = SocketClient.ReceivePacket(ref heartBeat, out PacketHeader Header);
-                //    if (Header.PacketAction != PacketActionType.Empty)
-                //    {
-                //        // Check for ping every so often
-                //        if (!heartBeat.TrySendHeartBeat(ref Helper, out bool IsDisconnected) && IsDisconnected)
-                //        {
-                //            Token.Cancel();
-
-                //            if (Self.OperationMode == PeerState.Peer)
-                //            {
-
-                //                var PeerInfo = Self.FindPeerById(Self.PeerId);
-
-                //                if (PeerInfo is not null)
-                //                {
-                //                    Self.TCPServer.Clients.Remove(PeerInfo.Value.Item1);
-                //                    Self.ConnectedPeers.Remove(PeerInfo.Value.Item2);
-
-                //                    // Announce to all other clients that peer disconnected
-                //                    Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
-                //                }
-                //            }
-
-
-                //            Console.WriteLine("[Client] Timed out");
-                //            return;
-                //        }
-
-                //        // This works but we'll mess with that later after auth
-                //        if (!VoiceStarted) { Audio.Audio.StartStreaming(ref Helper); VoiceStarted = true; }
-                //        else if (VoiceStarted && Token.IsCancellationRequested) { Audio.Audio.StopStreaming(); }
-
-                //        // Complete normal auth then share your peer list
-
-                //        // receive normal messages after auth
-                //        ///byte[] Packet = SocketClient.ReceivePacket(ref heartBeat, out PacketHeader Header);
-                //        if (Header.PacketAction != PacketActionType.Empty)
-                //        {
-                //            if (Header.PacketEncryptionType != PacketEncryptionType.NONE)
-                //            {
-                //                Console.WriteLine("Encrypted packet detected, autodecrypting");
-
-                //                PacketEncrypted encrypted = Packet.FromUTF8IntoJSON<PacketEncrypted>();
-                //                switch (encrypted.EncryptionType)
-                //                {
-                //                    case PacketEncryptionType.RSA:
-                //                        Packet = encrypted.Decrypt(Packer.EncryptionKeys.RemoteRSAPubKey);
-                //                        break;
-                //                    case PacketEncryptionType.ChaCha20Poly1305:
-                //                        Packet = encrypted.Decrypt(Packer.EncryptionKeys.ChaChaKey);
-                //                        break;
-                //                }
-                //            }
-
-
-                //            if (Header.PacketAction != PacketActionType.Ping && Header.PacketAction != PacketActionType.Pong)
-                //            {
-                //                //Console.WriteLine($"[ClientPacketData] {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
-                //            }
-
-
-
-                //            HandleAction(Header, Packet, Packer);
-                //        }
-                //    }
-                //}
-                #endregion
-
             }
         });
     }
 
     public void HandleAuthentication(Socket Client, PacketHelper Packer)
     {
-        Console.WriteLine("[Client] handling authentication");
+        //Console.WriteLine("[Client] handling authentication");
 
         // Generate ChaChaKey here as we will be needing it anyway
         Packer.EncryptionKeys.ChaChaKey = CryptUtils.GenerateRandomData(32);
-        Console.WriteLine("[Client] ChaChaKey generated");
+        //Console.WriteLine("[Client] ChaChaKey generated");
 
 
         // Sends DiscoveredPeers if its existing, but if not sends ConnectedPeers
@@ -459,7 +217,7 @@ public class BaseTCPClient
         //PeerSYN SYN = new PeerSYN(Self.TCPServer.MyPeerTable, DiscoveredPeers);
 
         Packer.SendUTF8Packet($"{Self.PeerId.ToJSON()}", PacketActionType.SYN, false);
-        Console.WriteLine("[Client] Sent [SYN]");
+        //Console.WriteLine("[Client] Sent [SYN]");
 
         // Stay here until we are authenticated
         while (!IsAuthenticated)
@@ -470,7 +228,7 @@ public class BaseTCPClient
                 switch (Header.PacketAction)
                 {
                     case PacketActionType.SYNAck: // SYNAck sent from server - send Ack to client
-                        Console.WriteLine($"[Client] received [SYNAck]");
+                        //Console.WriteLine($"[Client] received [SYNAck]");
                         
                         if(Packet.IsValidJSON(out PacketAuthentication Auth))
                         {
@@ -497,7 +255,7 @@ public class BaseTCPClient
 
                             //Packer.SendUTF8Packet(Auth.ToJSON(), PacketActionType.ACK);
                             Packer.SendEncryptedPacket(Auth.ToJSON().ToUTF8Byte(), PacketEncryptionType.RSA, PacketActionType.ACK, false);
-                            Console.WriteLine($"[Client] sent encrypted ChaChaKey using RSA");
+                            //Console.WriteLine($"[Client] sent encrypted ChaChaKey using RSA");
                         }
                         else Console.WriteLine($"[Client] invalid Auth Packet");
 
@@ -505,14 +263,14 @@ public class BaseTCPClient
                         break;
                     case PacketActionType.ACK:
                         // server sends client ack, will be encrypted with rsa containing the pubkeys hash (data doesnt matter so its ignored), we then send the ChaChaKey
-                        Console.WriteLine($"[Client] received [ACK] from server");
+                        //Console.WriteLine($"[Client] received [ACK] from server");
 
                         if(Packet.IsValidJSON(out PacketEncrypted encrypted))
                         {
-                            Console.WriteLine("encrypted packet detected");
+                            //Console.WriteLine("encrypted packet detected");
                             if (encrypted.TryDecryptInto(Packer.EncryptionKeys.ChaChaKey, out Auth) && Auth.KeyData.ToHashString() == Packer.EncryptionKeys.ChaChaKey.ToHashString())
                             { 
-                                Console.WriteLine("[client] hash the same");
+                                //Console.WriteLine("[client] hash the same");
                                 Packer.SendUTF8Packet("<READY>", PacketActionType.Ready, false);
                             }
                             else Console.WriteLine($"[Client] [ACK] failed to decrypt encrypted ChaChaKey");
@@ -542,6 +300,9 @@ public class BaseTCPClient
             case PacketActionType.Data:
                 //OnDataReceived.Invoke(Data.Span);
                 break;
+            case PacketActionType.PeerJoin:
+                Console.WriteLine("[Client] received PeerJoin event!");
+                break;
             //default:
             //    OnDataReceived.Invoke(Data.Span);
             //    break;
@@ -554,7 +315,7 @@ public class BaseTCPClient
 
         if (DATA.Length == 0) return;
         // Print the message that was received from the client
-        Console.WriteLine($"Client Received => [{Header.PacketAction}] EncryptionType: [{Header.PacketEncryptionType}] \"{DATA.ToUTF8String()}\""); 
+        //Console.WriteLine($"Client Received => [{Header.PacketAction}] EncryptionType: [{Header.PacketEncryptionType}] \"{DATA.ToUTF8String()}\""); 
         HandleAction(Header, DATA, Packer);
     }
 }
