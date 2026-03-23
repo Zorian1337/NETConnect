@@ -90,11 +90,11 @@ public class Multicast
                 //Console.WriteLine();
 
                 string receivedMsg = Encoding.UTF8.GetString(received);
-                Console.WriteLine(receivedMsg);
+                //Console.WriteLine(receivedMsg); // Disabled to clear my screen
                 if (receivedMsg.IsValidJSON(out MulticastPacket Packet) && Packet.SenderId != SenderId)
                 {
+                    Console.WriteLine($"[Multicast] recevied -> [{Packet.SenderId}] - {Packet.Data.ToUTF8String()}");
                     OnMulticastMessage?.Invoke(Packet);
-                    //Console.WriteLine($"[{Packet.SenderId}] - {Packet.Data.ToUTF8String()}");
                 }
 
                 // access this bool while inside the loop to disable our events (it should work but untested)
@@ -109,14 +109,23 @@ public class Multicast
         switch (Packet.Action)
         {
             case MulticastAction.Join:
+
+                // WE NEED TO CHANGE THE FLOW OF THIS, 
+                // MULTICAST IS THE ONLY WAY CLIENTS GET CONVERTED TO PEER
+                // CLIENTS EVEN AFTER CONNECTING NEED TO WAIT FOR THE MULTICAST TO DISCOVER THEM SO THAT IT CAN CREATE A NEW CONNECTION JUST TO MAKE IT A PEER
+                // I DONT EVEN THINK IT USES THE SAME CLIENT OBJECT TO CONVERT IT OVER
+                // WE NEED TO MAKE SURE THAT IT CHECKS IF A CLIENT ISNT ALREADY A PEER AND A PEER ISNT ALREADY LISTED
+                // INSTEAD OF JUST CHECKING FOR A CONNECTED PEER
+
                 // Remove any peers that exist multiple times somehow
                 Self.ConnectedPeers = Self.ConnectedPeers.Distinct().ToList();
 
 
-                //Console.WriteLine($"[SELF] MySenderId: {Self.PeerId}, PacketSenderId: {Packet.SenderId}");
+
 
                 // Add only peers that havent been discovered yet
-                if (Self.ConnectedPeers.Any(x => x.PeerId == Packet.SenderId) || Self.PeerId == Packet.SenderId)
+                // Include peers that have already been connected to the server just not added to the connected peer list yet (find a way to add them during our client flow)
+                if (Self.ConnectedPeers.Any(x => x.PeerId == Packet.SenderId) || Self.PeerId == Packet.SenderId) // Removing this just for now Self.TCPServer.Clients.Any(x => x.Id == Packet.SenderId)
                 {
                     //Console.WriteLine("Peer already disovered");
                     return;  
@@ -162,6 +171,11 @@ public class Multicast
                     //Self.TCPServer.MyPeerTable = myPeer;
                     // Send new peer old peer list (we wont have any peers right now)
                     Client.Packer.SendUTF8Packet(Self.ConnectedPeers.ToArray().ToJSON(), PacketActionType.PeerJoin);
+
+                    // We simply just need to do Self.ConnectedPeers.Add in the PeerJoin area (I hope)
+                    // Server controls the multicast so this is how it ends up populated for servers (at least it should be)
+                    // Whatever peer reads this multicast becomes the peers server, and the server becomes the peer (super confusing I know)
+                    // It seems we already have it there so I have no clue how to fix this
                     Self.ConnectedPeers.Add(newPeer);
                 }
                 break;
