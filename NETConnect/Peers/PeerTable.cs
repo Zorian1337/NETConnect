@@ -12,7 +12,6 @@ namespace NETConnect.Peers
 {
     public class PeerTable
     {
-
         [JsonIgnore]
         public Peer Self { get; set; }  
         public Guid PeerId { get; set; }
@@ -22,6 +21,7 @@ namespace NETConnect.Peers
 
         /// <summary>
         /// Used for server side to get a direct line
+        /// I think in real communications this wont really be used but im unsure, p2p is alot to wrap my head around
         /// </summary>
         [JsonIgnore]
         public PacketHelper PacketHelper { get; set; }
@@ -30,21 +30,13 @@ namespace NETConnect.Peers
         public string Address { get; set; }
         public int Port { get; set; }
 
-        public string AddressPort
-        {
-            get => $"{Address}:{Port}";
-        }
+        public string AddressPort => $"{Address}:{Port}";
 
         public NetworkStats NetStats { get; set; }
-
-
-
-
-
-
-        //public PeerTable
-
-
+        public PacketHelper GetPacketHelper() {
+            if (PacketHelper is null) return Client.Packer;
+            else return PacketHelper;
+        }
 
 
         public PeerTable() { }
@@ -66,8 +58,6 @@ namespace NETConnect.Peers
             this.NetStats = new NetworkStats(PeerId);
             //Console.WriteLine(NetStats.ToJSON());
         }
-
-
 
         public PeerTable(ref PacketHelper PacketHelper, Guid PeerId, string Address, int Port)
         {
