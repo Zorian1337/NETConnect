@@ -22,25 +22,27 @@ namespace NETConnect.MyExtensions
     {
         public static bool IsGracefulShutdown(this Socket socket)
         {
+            // Polling apparently causing lots of CPU usage, Or whatever it may be but its not too worth it
+            // We will need to find another alternative to this later
             if (socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0) return true;
             else return false;
         }
 
 
-        public static Stream GetSslStream(this Socket Connection, X509Certificate2 cert) //bool IsServer = true
-        {
-            NetworkStream stream = new NetworkStream(Connection, true);
+        //public static Stream GetSslStream(this Socket Connection, X509Certificate2 cert) //bool IsServer = true
+        //{
+        //    NetworkStream stream = new NetworkStream(Connection, true);
 
-            var ssl = new SslStream(stream, false);
+        //    var ssl = new SslStream(stream, false);
 
-            ssl.AuthenticateAsServer(
-            cert,
-            clientCertificateRequired: false,
-            enabledSslProtocols: SslProtocols.Tls13 | SslProtocols.Tls12,
-            checkCertificateRevocation: false);
+        //    ssl.AuthenticateAsServer(
+        //    cert,
+        //    clientCertificateRequired: false,
+        //    enabledSslProtocols: SslProtocols.Tls13 | SslProtocols.Tls12,
+        //    checkCertificateRevocation: false);
 
-            return ssl;
-        }
+        //    return ssl;
+        //}
 
 
         #region PacketHelper stuff...
@@ -93,8 +95,43 @@ namespace NETConnect.MyExtensions
 
         //public static int Send(this Socket Connection, byte[] Data, ref PacketHelper Packer, PacketActionType ActionType, PacketEncryptionType EncryptionType = PacketEncryptionType.NONE)
         //{
-           
+
         //}
+
+        /// <summary>
+        /// The purpose of this is to be the one to create the header manually in a different function and pass it here 
+        /// The premade header will still for validation purposes set the datas size here so you wont have to yourself
+        /// just everything regarding encryption and other information prior
+        /// </summary>
+        /// <param name="Connection"></param>
+        /// <param name="Data"></param>
+        /// <param name="premadeHeader"></param>
+        /// <returns></returns>
+        public static int SendWithHeader(this Socket Connection, byte[] Data, PacketHeader premadeHeader) 
+        {
+            int bytesSent = -1;
+            int DataSize, DataToWrite = 0;
+            if (Data is not null)
+            {
+                DataSize = Data.Length;
+                DataToWrite = Data.Length;
+            }
+            else
+            {
+                DataSize = 0;
+                DataToWrite = -1;
+            }
+
+            // Buffer which holds our network data to send
+            byte[] safeBuffer = new byte[PacketHeader.HeaderSize + DataSize];
+
+            // Only add our data size to the premade Header - this feels so backwards but its needed
+            // Its so that if we want to add custom things to the header and not have it be overriden we can do it
+            premadeHeader.ByteLength = DataSize;
+
+            // Returns -1 by default
+            return bytesSent;
+        }
 
         public static int Send(this Socket Connection, byte[] Data, PacketActionType ActionType, PacketEncryptionType EncryptionType = PacketEncryptionType.NONE)
         {
@@ -144,77 +181,54 @@ namespace NETConnect.MyExtensions
             }
 
             // Output the data we send as bytes for debugging
-            Console.WriteLine($"C# data sent ->\n[{ActionType.ToString()}] - [{EncryptionType.ToString()}] -> Size: {DataToSend.Length} - DATA: {string.Join(" ", DataToSend.ToArray().Select(x => x.ToString("X2")))}"); //.Select(x => x.ToString("X2")
+            //Console.WriteLine($"C# data sent ->\n[{ActionType.ToString()}] - [{EncryptionType.ToString()}] -> Size: {DataToSend.Length} - DATA: {string.Join(" ", DataToSend.ToArray().Select(x => x.ToString("X2")))}"); //.Select(x => x.ToString("X2")
 
             return bytesSent;
         }
 
 
-        public static byte[] ReceiveValidatedPacket(this Socket Connection, ref HeartBeat KeepAlive, ref PacketHelper Packer, out PacketHeader Header)
-        {
-            // Gets Packet and Header, and handles timeouts/shutdowns
-
-            byte[] Packet = Connection.ReceivePacket(out Header);
-
-            if(Header.PacketAction != PacketActionType.Empty) Console.WriteLine($"Header: {Header.ToJSON()}");
-
-
-            // Skip validation check if its either dead data, or not encrypted
-            //if (Header.PacketAction == PacketActionType.Empty) return Packet;
-
-
-
-
-            //Console.WriteLine($"{Header.PacketEncryptionType}");
-
-            if (Header.PacketEncryptionType == PacketEncryptionType.NONE) return Packet;
-            else if(Header.PacketEncryptionType != PacketEncryptionType.NONE)
-            {
-                Console.WriteLine($"[Validated-Receive] Header.Encrypted as {Header.PacketEncryptionType}");
-                // Verify Authenticity here - this can be used with HMAC if setup right
-                // Check packet length, return invalid if size isnt normal for an encrypted packet
-
-                //if (Packet.Length == 0) { Header.PacketAction = PacketActionType.EmptyEncryptedPacket; return default; }
-
-                // Check if data is type PacketEncrypted
-                //if (Packet.IsValidJSON(out PacketEncrypted Encrypted))
-                //{
-                //    Console.WriteLine("Encrypted Packet found");
-                //}
-                //else Console.WriteLine($"Failed to find encrypted packet");
-            }
-
-
-
-
-
-
-            return Packet;
-        }
-
-        // this doesnt work
-        //public static byte[] ReceivePacket(this Socket Connection, ref HeartBeat KeepAlive, out PacketHeader Header)
+        //public static byte[] ReceiveValidatedPacket(this Socket Connection, ref HeartBeat KeepAlive, ref PacketHelper Packer, out PacketHeader Header)
         //{
-        //    Header = default;
-        //    int bytesRead = -1;
+        //    // Gets Packet and Header, and handles timeouts/shutdowns
 
-        //    // Handles connection heartbeat/timeout - sending/receiving data (should automatically update the beats if the data goes through)
-        //    if (KeepAlive.IsTimeout() && !KeepAlive.FirstBeat|| Connection.IsGracefulShutdown()) { Header.PacketAction = PacketActionType.Disconnect; return Array.Empty<byte>(); }
+        //    byte[] Packet = Connection.ReceivePacket(out Header);
 
-        //    if (Connection.HasValidHeader(out Header))
+        //    if(Header.PacketAction != PacketActionType.Empty) Console.WriteLine($"Header: {Header.ToJSON()}");
+
+
+        //    // Skip validation check if its either dead data, or not encrypted
+        //    //if (Header.PacketAction == PacketActionType.Empty) return Packet;
+
+
+
+
+        //    //Console.WriteLine($"{Header.PacketEncryptionType}");
+
+        //    if (Header.PacketEncryptionType == PacketEncryptionType.NONE) return Packet;
+        //    else if(Header.PacketEncryptionType != PacketEncryptionType.NONE)
         //    {
-        //        byte[] Buffer = new byte[Header.ByteLength];
+        //        Console.WriteLine($"[Validated-Receive] Header.Encrypted as {Header.PacketEncryptionType}");
+        //        // Verify Authenticity here - this can be used with HMAC if setup right
+        //        // Check packet length, return invalid if size isnt normal for an encrypted packet
 
-        //        bytesRead = Connection.Receive(Buffer, 0, Header.ByteLength, SocketFlags.None);
-        //        //if (Header.PacketAction == PacketActionType.Empty) return Array.Empty<byte>();
+        //        //if (Packet.Length == 0) { Header.PacketAction = PacketActionType.EmptyEncryptedPacket; return default; }
 
-        //        Console.WriteLine($"ReceivePacket - {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
-
-        //        if (bytesRead > 0) return Buffer;
-        //        else return Array.Empty<byte>();
+        //        // Check if data is type PacketEncrypted
+        //        //if (Packet.IsValidJSON(out PacketEncrypted Encrypted))
+        //        //{
+        //        //    Console.WriteLine("Encrypted Packet found");
+        //        //}
+        //        //else Console.WriteLine($"Failed to find encrypted packet");
         //    }
-        //    else return Array.Empty<byte>();
+
+
+
+
+
+
+        //    return Packet;
         //}
+
 
         public static byte[] ReceivePacket(this Socket Connection, out PacketHeader Header)
         {
@@ -239,45 +253,45 @@ namespace NETConnect.MyExtensions
         }
 
 
-        public static bool HasValidHeader(this Socket Connection, out byte[] HeaderBytes, out int DataLength)
-        {
-            HeaderBytes = Array.Empty<byte>();
-            DataLength = 0;
+        //public static bool HasValidHeader(this Socket Connection, out byte[] HeaderBytes, out int DataLength)
+        //{
+        //    HeaderBytes = Array.Empty<byte>();
+        //    DataLength = 0;
 
 
-            if (Connection.Available >= PacketHeader.HeaderSize)
-            {
-                Console.WriteLine("BufferSize valid data received");
+        //    if (Connection.Available >= PacketHeader.HeaderSize)
+        //    {
+        //        Console.WriteLine("BufferSize valid data received");
 
-                byte[] TempBuffer = new byte[PacketHeader.HeaderSize];
+        //        byte[] TempBuffer = new byte[PacketHeader.HeaderSize];
 
-                // Peak at our data, get the length of our header and data (8 + data length)
-                Connection.Receive(TempBuffer, PacketHeader.HeaderSize, SocketFlags.None);
+        //        // Peak at our data, get the length of our header and data (8 + data length)
+        //        Connection.Receive(TempBuffer, PacketHeader.HeaderSize, SocketFlags.None);
 
 
 
-                try
-                {
-                    if(PacketHeader.ValidateHeader(TempBuffer, out PacketHeader Header))
-                    {
-                        HeaderBytes = TempBuffer;
-                        DataLength = Header.ByteLength;
+        //        try
+        //        {
+        //            if(PacketHeader.ValidateHeader(TempBuffer, out PacketHeader Header))
+        //            {
+        //                HeaderBytes = TempBuffer;
+        //                DataLength = Header.ByteLength;
 
-                        // Display our temp buffer in 
-                        Console.WriteLine($"Valid Header received: {Header.ToJSON()}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"invalid header ->\nSize: {TempBuffer.Length} - {TempBuffer.ToUTF8String()}");
-                        Console.WriteLine("Socket read invalid header data");
-                        return false;
-                    }
-                }
-                catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine(Ex.ToString()); return default; } // If any error just return, as its probably not valid
-            }
+        //                // Display our temp buffer in 
+        //                Console.WriteLine($"Valid Header received: {Header.ToJSON()}");
+        //            }
+        //            else
+        //            {
+        //                Console.WriteLine($"invalid header ->\nSize: {TempBuffer.Length} - {TempBuffer.ToUTF8String()}");
+        //                Console.WriteLine("Socket read invalid header data");
+        //                return false;
+        //            }
+        //        }
+        //        catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine(Ex.ToString()); return default; } // If any error just return, as its probably not valid
+        //    }
 
-            return false;
-        }
+        //    return false;
+        //}
 
         public static bool HasValidHeader(this Socket Connection, out PacketHeader Header)
         {
@@ -307,11 +321,11 @@ namespace NETConnect.MyExtensions
         }
 
 
-        public static bool ReadForPacketV2(this Socket Connection, ReadOnlyMemory<byte> DATA, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData)
-        {
-            // Reads the data and checks if it contains packet headers
-            return PacketHeader.ReadFrom(DATA, out Headers, out PacketData);
-        }
+        //public static bool ReadForPacketV2(this Socket Connection, ReadOnlyMemory<byte> DATA, out PacketHeader[] Headers, out ReadOnlyMemory<byte>[] PacketData)
+        //{
+        //    // Reads the data and checks if it contains packet headers
+        //    return PacketHeader.ReadFrom(DATA, out Headers, out PacketData);
+        //}
 
         #endregion
 
