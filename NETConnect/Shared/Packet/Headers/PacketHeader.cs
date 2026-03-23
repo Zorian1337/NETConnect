@@ -2,6 +2,7 @@
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
@@ -71,6 +72,8 @@ public enum PacketEncryptionType : ushort
 
 public struct PacketHeader
 {
+    public PacketHeader() { }
+
     public PacketHeader(int ByteLength, PacketActionType PacketAction, PacketEncodingType PacketEncodingType)
     {
         this.ByteLength = ByteLength;
@@ -85,25 +88,115 @@ public struct PacketHeader
         PacketEncryptionType = EncryptionType;
     }
 
+    public bool IsSenderIPv4() 
+    {
+        if (SenderIP.Length == 16 && SenderIP.All(x => x == 0)) return false;
+        if (SenderIP.Take(12).All(x => x == 0)) return true;
+        else if (SenderIP.All(x => x != 0)) return false;
 
+        return false;
+    }
+
+    public bool IsSenderIPv6() 
+    {
+        if (SenderIP.Length == 16 && SenderIP.All(x => x == 0)) return false;
+        else if (IsSenderIPv4()) return false;
+        else if (SenderIP.All(x => x != 0)) return true;
+
+        return false;
+    }
+
+    public bool IsValidIP(out bool IsIPv4) 
+    {
+        IsIPv4 = IsSenderIPv4();
+        bool IPv6 = IsSenderIPv6();
+        if (IsIPv4 || IPv6) return true;
+        else return false;
+    }
+
+    public string GetIPString() 
+    {
+        if (IsValidIP(out bool IsIPv4))
+        {
+
+            if (IsIPv4) return new IPAddress(SenderIP.TakeLast(4).ToArray()).ToString();
+            else return new IPAddress(SenderIP.ToArray()).ToString();
+        }
+        else return default;
+    }
+
+    /// <summary>
+    /// Used to quickly read if the packet that this was sent to is meant for this peer
+    /// </summary>
+    /// <param name="MyPeerId"></param>
+    /// <returns></returns>
+    public bool IsPacketForMe(Guid MyPeerId) 
+    {
+        // Empty means the packet is for anyone who reads it
+        if (RecipientPeerId == Guid.Empty || MyPeerId == RecipientPeerId) return true;
+        else return false;
+    }
+
+    public static PacketHeader GetTraversalHeader(Guid SenderId, string SenderIP, ushort SenderPort, Guid RecipientPeerId) 
+    {
+        PacketHeader header = new PacketHeader();
+        header.SenderPeerId = SenderId;
+
+        // IPv4 will be 4 bytes, IPv6 will be 16 
+        byte[] SendableIP = new byte[16];
+        IPAddress IP = IPAddress.Parse(SenderIP);
+        byte[] IPBytes = IP.GetAddressBytes();
+
+        if (IPBytes.Length == 4) Array.Copy(IPBytes, 0, SendableIP, 12, IPBytes.Length);
+        else Array.Copy(IPBytes, 0, SendableIP, 0, SendableIP.Length);
+
+        header.SenderIP = SendableIP;
+        header.SenderPort = SenderPort;
+        header.RecipientPeerId = RecipientPeerId;
+        return header;
+    }
+
+    // Basic Header - Maybe add a HeaderLength before ByteLength so we can have dynamic header sizes 
     public int ByteLength { get; set; }
     public PacketActionType PacketAction { get; set; } = PacketActionType.Empty;
-    public PacketEncodingType PacketEncodingType { get; set; } = PacketEncodingType.BINARY;
+    public PacketEncodingType PacketEncodingType { get; set; } = PacketEncodingType.UTF8; // Set default to UTF8 as that is what we are using and decoding into
     public PacketEncryptionType PacketEncryptionType { get; set; } = PacketEncryptionType.NONE;
     public long SentAt { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-    //public 
+    
+    // End of Basic Header 18 length - create dynamic header later
+    
+
+    public Guid SenderPeerId { get; set; }                  // 16 Bytes
+    public Guid RecipientPeerId { get; set; } = Guid.Empty; // 16 Bytes
+
+    public byte[] SenderIP { get; set; }                    // 16 Bytes for both IPv4 and IPv6
+    public ushort SenderPort { get; set; }                  // 2 Bytes
 
 
-    public const int HeaderSize = 18;
+    public const int HeaderSize = 68;           // Originally 18
     public Span<byte> WriteTo(Span<byte> buffer)
     {
         // Writes packet length first as thats more important 
-        BinaryPrimitives.WriteInt32LittleEndian(buffer, ByteLength); // Ints are 4 bytes
-        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(4), (ushort)PacketAction); // Slice into the buffer holding the int from the first insert
-        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(6), (ushort)PacketEncodingType); // Does the same as above but includes the Packet action (adds 2 more bytes for the ushort) 
+
+        // Basic Header
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, ByteLength);                             // Ints are 4 bytes
+        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(4), (ushort)PacketAction);         // Slice into the buffer holding the int from the first insert
+        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(6), (ushort)PacketEncodingType);   // Does the same as above but includes the Packet action (adds 2 more bytes for the ushort) 
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(8), (ushort)PacketEncryptionType); // Skips last 8 to write the next 2
-        BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(10), SentAt); // Skips first 10 to write the next 8
+        BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(10), SentAt);                       // Skips first 10 to write the next 8
+        // End of Basic Header - starts at 18
         
+        int Offset = 18;
+        SenderPeerId.ToByteArray().CopyTo(buffer.Slice(Offset));                                     // Starts at 18 then writes our SenderPeerId 
+        Offset += 16;
+        RecipientPeerId.ToByteArray().CopyTo(buffer.Slice(Offset));
+        Offset += 16;
+        SenderIP.CopyTo(buffer.Slice(Offset));
+        Offset += 16;
+        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(Offset), SenderPort);
+        Offset += 2; // 68 header size length here
+
+
         return buffer.Slice(0, HeaderSize); // Returns the amount of bytes that we written to buffer
     }
 
@@ -122,8 +215,6 @@ public struct PacketHeader
         // Handles more than 1 packet 
         if (buffer.Length > HeaderSize)
         {
-            
-
             ReadOnlyMemory<byte> Header = buffer.Slice(0, HeaderSize);
 
             int DataLength = BinaryPrimitives.ReadInt32LittleEndian(Header.Span);
@@ -134,11 +225,26 @@ public struct PacketHeader
                 //Console.WriteLine("single packet");
                 // Only grab from Header so that we can guarentee that we are getting the right packet
                 PacketHeader Packet = new PacketHeader();
+                
+                // Basic Header - 18 Length
                 Packet.ByteLength = DataLength;
                 Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(4).Span);
                 Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(6).Span);
                 Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
                 Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(10).Span);
+                // End of Basic Header - starts at 18
+
+                // I dont really like doing it with the offset, makes things look sloppy
+                int Offset = 18;
+                Packet.SenderPeerId = new Guid(Header.Slice(Offset, 16).Span);      // Starts at 18 then writes our SenderPeerId 
+                Offset += 16;
+                Packet.RecipientPeerId = new Guid(Header.Slice(Offset, 16).Span); 
+                Offset += 16;
+                Packet.SenderIP = Header.Slice(Offset, 16).Span.ToArray();
+                Offset += 16;
+                Packet.SenderPort = BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(Offset).Span); 
+                Offset += 2; // 68 header size length here
+
 
                 Headers = new PacketHeader[] { Packet };
 
@@ -167,6 +273,17 @@ public struct PacketHeader
             Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
             Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(10).Span);
 
+            // I dont really like doing it with the offset, makes things look sloppy
+            int Offset = 18;
+            Packet.SenderPeerId = new Guid(buffer.Slice(Offset, 16).Span);      // Starts at 18 then writes our SenderPeerId 
+            Offset += 16;
+            Packet.RecipientPeerId = new Guid(buffer.Slice(Offset, 16).Span);
+            Offset += 16;
+            Packet.SenderIP = buffer.Slice(Offset, 16).Span.ToArray();
+            Offset += 16;
+            Packet.SenderPort = BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(Offset).Span);
+            Offset += 2; // 68 header size length here
+
             // Return Header, packet data is probably null
             Headers = new PacketHeader[] { Packet };
 
@@ -193,6 +310,17 @@ public struct PacketHeader
                 Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(6));
                 Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(8));
                 Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(Buffer.Slice(10));
+
+                // I dont really like doing it with the offset, makes things look sloppy
+                int Offset = 18;
+                Packet.SenderPeerId = new Guid(Buffer.Slice(Offset, 16));      // Starts at 18 then writes our SenderPeerId 
+                Offset += 16;
+                Packet.RecipientPeerId = new Guid(Buffer.Slice(Offset, 16));
+                Offset += 16;
+                Packet.SenderIP = Buffer.Slice(Offset, 16).ToArray();
+                Offset += 16;
+                Packet.SenderPort = BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(Offset));
+                Offset += 2; // 68 header size length here
 
                 Header = Packet;
                 return true;
