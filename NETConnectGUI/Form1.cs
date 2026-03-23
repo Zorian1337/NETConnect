@@ -39,7 +39,7 @@ namespace NETConnectGUI
         {
             //MessageBox.Show("test");
 
-            
+
 
             while (true)
             {
@@ -85,7 +85,7 @@ namespace NETConnectGUI
 
         private void Form1_Shown(object sender, EventArgs e)
         {
-            
+
         }
 
         private void btnSendMessage_Click(object sender, EventArgs e)
@@ -119,6 +119,11 @@ namespace NETConnectGUI
             cmbPeerList.DataSource = Self.ConnectedPeers;
             cmbPeerList.DisplayMember = "AddressPort";
             cmbPeerList.ValueMember = "PeerId";
+        }
+
+        private void tabPage1_Click(object sender, EventArgs e)
+        {
+
         }
     }
 }

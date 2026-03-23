@@ -68,6 +68,7 @@
             tabPage1.TabIndex = 0;
             tabPage1.Text = "tab1";
             tabPage1.UseVisualStyleBackColor = true;
+            tabPage1.Click += tabPage1_Click;
             // 
             // cmbPeerList
             // 
