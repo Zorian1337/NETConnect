@@ -46,9 +46,9 @@ public class BaseTCPClient
 
     public event Action<PacketHelper, PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
 
-
-    public bool IsAuthenticating = false;
-    public bool IsAuthenticated = false;
+    // USING VERSION FROM PACKER TO SEE IF IT'LL HAVE ITS OWN SEPERATED FROM THE SERVER ITSELF
+    //public bool IsAuthenticating = false;
+    //public bool IsAuthenticated = false;
 
 
 
@@ -85,7 +85,12 @@ public class BaseTCPClient
             try
             {
                 SocketClient.Connect(EndPoint); 
-                OnConnected?.Invoke(); 
+                OnConnected?.Invoke();
+
+                // Don't return true on this function until its registered as Authenticated
+                // Will need to redo later, as it wont always need to be authenticated
+                do { Thread.Sleep(100); }
+                while (Packer.IsAuthenticating);
                 return true;
             }
             catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine($"TryConnect Exception: {Ex.ToString()}"); }
@@ -97,6 +102,7 @@ public class BaseTCPClient
         // Returns false if client didnt connect properly
         return false;
     }
+
 
     public void HandleConnected()
     {
@@ -126,11 +132,11 @@ public class BaseTCPClient
             {
                 Thread.Sleep(5);
 
-                // Continue until authentication is complete
-                if (IsAuthenticating) continue;
-                if (!IsAuthenticated)
+                // Continue until authentication is complete - 
+                if (Packer.IsAuthenticating) continue;
+                if (!Packer.IsAuthenticated)
                 {
-                    IsAuthenticating = true;
+                    Packer.IsAuthenticating = true;
                     OnAuthenticationRequested.Invoke(Client, _Packer);
                 }
 
@@ -220,7 +226,7 @@ public class BaseTCPClient
         //Console.WriteLine("[Client] Sent [SYN]");
 
         // Stay here until we are authenticated
-        while (!IsAuthenticated)
+        while (!Packer.IsAuthenticated)
         {
             byte[] Packet = Client.ReceivePacket(out PacketHeader Header);
             if (Header.PacketAction != PacketActionType.Empty)
@@ -279,8 +285,8 @@ public class BaseTCPClient
 
                         break;
                     case PacketActionType.Ready:
-                        IsAuthenticated = true;
-                        IsAuthenticating = false;
+                        Packer.IsAuthenticated = true;
+                        Packer.IsAuthenticating = false;
                         Console.WriteLine($"[Client] [Ready] Connection authenticated with Server");
                         break;
                 }
@@ -290,7 +296,7 @@ public class BaseTCPClient
     }
 
 
-    public  void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
+    public void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
     {
 
         switch (Header.PacketAction)
