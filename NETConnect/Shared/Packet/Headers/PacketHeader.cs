@@ -44,6 +44,7 @@ public enum PacketActionType : ushort // ushort is 2 bytes
     #endregion
 }
 
+
 public enum PacketEncodingType : ushort
 {
     UTF8, 
@@ -90,18 +91,18 @@ public struct PacketHeader
 
     public bool IsSenderIPv4() 
     {
-        if (SenderIP.Length == 16 && SenderIP.All(x => x == 0)) return false;
-        if (SenderIP.Take(12).All(x => x == 0)) return true;
-        else if (SenderIP.All(x => x != 0)) return false;
+        if (OriginIP.Length == 16 && OriginIP.All(x => x == 0)) return false;
+        if (OriginIP.Take(12).All(x => x == 0)) return true;
+        else if (OriginIP.All(x => x != 0)) return false;
 
         return false;
     }
 
     public bool IsSenderIPv6() 
     {
-        if (SenderIP.Length == 16 && SenderIP.All(x => x == 0)) return false;
+        if (OriginIP.Length == 16 && OriginIP.All(x => x == 0)) return false;
         else if (IsSenderIPv4()) return false;
-        else if (SenderIP.All(x => x != 0)) return true;
+        else if (OriginIP.All(x => x != 0)) return true;
 
         return false;
     }
@@ -119,10 +120,10 @@ public struct PacketHeader
         if (IsValidIP(out bool IsIPv4))
         {
 
-            if (IsIPv4) return new IPAddress(SenderIP.TakeLast(4).ToArray()).ToString();
-            else return new IPAddress(SenderIP.ToArray()).ToString();
+            if (IsIPv4) return new IPAddress(OriginIP.TakeLast(4).ToArray()).ToString();
+            else return new IPAddress(OriginIP.ToArray()).ToString();
         }
-        else return default;
+        else return String.Empty;
     }
 
     /// <summary>
@@ -140,7 +141,7 @@ public struct PacketHeader
     public static PacketHeader GetTraversalHeader(Guid SenderId, string SenderIP, ushort SenderPort, Guid RecipientPeerId) 
     {
         PacketHeader header = new PacketHeader();
-        header.SenderPeerId = SenderId;
+        header.OriginPeerId = SenderId;
 
         // IPv4 will be 4 bytes, IPv6 will be 16 
         byte[] SendableIP = new byte[16];
@@ -150,8 +151,8 @@ public struct PacketHeader
         if (IPBytes.Length == 4) Array.Copy(IPBytes, 0, SendableIP, 12, IPBytes.Length);
         else Array.Copy(IPBytes, 0, SendableIP, 0, SendableIP.Length);
 
-        header.SenderIP = SendableIP;
-        header.SenderPort = SenderPort;
+        header.OriginIP = SendableIP;
+        header.OriginPort = SenderPort;
         header.RecipientPeerId = RecipientPeerId;
         return header;
     }
@@ -166,11 +167,11 @@ public struct PacketHeader
     // End of Basic Header 18 length - create dynamic header later
     
 
-    public Guid SenderPeerId { get; set; }                  // 16 Bytes
+    public Guid OriginPeerId { get; set; }                  // 16 Bytes
     public Guid RecipientPeerId { get; set; } = Guid.Empty; // 16 Bytes
 
-    public byte[] SenderIP { get; set; }                    // 16 Bytes for both IPv4 and IPv6
-    public ushort SenderPort { get; set; }                  // 2 Bytes
+    public byte[] OriginIP { get; set; }                    // 16 Bytes for both IPv4 and IPv6
+    public ushort OriginPort { get; set; }                  // 2 Bytes
 
 
     public const int HeaderSize = 68;           // Originally 18
@@ -187,13 +188,13 @@ public struct PacketHeader
         // End of Basic Header - starts at 18
         
         int Offset = 18;
-        SenderPeerId.ToByteArray().CopyTo(buffer.Slice(Offset));                                     // Starts at 18 then writes our SenderPeerId 
+        OriginPeerId.ToByteArray().CopyTo(buffer.Slice(Offset));                                     // Starts at 18 then writes our SenderPeerId 
         Offset += 16;
         RecipientPeerId.ToByteArray().CopyTo(buffer.Slice(Offset));
         Offset += 16;
-        SenderIP.CopyTo(buffer.Slice(Offset));
+        OriginIP.CopyTo(buffer.Slice(Offset));
         Offset += 16;
-        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(Offset), SenderPort);
+        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(Offset), OriginPort);
         Offset += 2; // 68 header size length here
 
 
@@ -236,13 +237,13 @@ public struct PacketHeader
 
                 // I dont really like doing it with the offset, makes things look sloppy
                 int Offset = 18;
-                Packet.SenderPeerId = new Guid(Header.Slice(Offset, 16).Span);      // Starts at 18 then writes our SenderPeerId 
+                Packet.OriginPeerId = new Guid(Header.Slice(Offset, 16).Span);      // Starts at 18 then writes our SenderPeerId 
                 Offset += 16;
                 Packet.RecipientPeerId = new Guid(Header.Slice(Offset, 16).Span); 
                 Offset += 16;
-                Packet.SenderIP = Header.Slice(Offset, 16).Span.ToArray();
+                Packet.OriginIP = Header.Slice(Offset, 16).Span.ToArray();
                 Offset += 16;
-                Packet.SenderPort = BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(Offset).Span); 
+                Packet.OriginPort = BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(Offset).Span); 
                 Offset += 2; // 68 header size length here
 
 
@@ -275,13 +276,13 @@ public struct PacketHeader
 
             // I dont really like doing it with the offset, makes things look sloppy
             int Offset = 18;
-            Packet.SenderPeerId = new Guid(buffer.Slice(Offset, 16).Span);      // Starts at 18 then writes our SenderPeerId 
+            Packet.OriginPeerId = new Guid(buffer.Slice(Offset, 16).Span);      // Starts at 18 then writes our SenderPeerId 
             Offset += 16;
             Packet.RecipientPeerId = new Guid(buffer.Slice(Offset, 16).Span);
             Offset += 16;
-            Packet.SenderIP = buffer.Slice(Offset, 16).Span.ToArray();
+            Packet.OriginIP = buffer.Slice(Offset, 16).Span.ToArray();
             Offset += 16;
-            Packet.SenderPort = BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(Offset).Span);
+            Packet.OriginPort = BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(Offset).Span);
             Offset += 2; // 68 header size length here
 
             // Return Header, packet data is probably null
@@ -313,13 +314,13 @@ public struct PacketHeader
 
                 // I dont really like doing it with the offset, makes things look sloppy
                 int Offset = 18;
-                Packet.SenderPeerId = new Guid(Buffer.Slice(Offset, 16));      // Starts at 18 then writes our SenderPeerId 
+                Packet.OriginPeerId = new Guid(Buffer.Slice(Offset, 16));      // Starts at 18 then writes our SenderPeerId 
                 Offset += 16;
                 Packet.RecipientPeerId = new Guid(Buffer.Slice(Offset, 16));
                 Offset += 16;
-                Packet.SenderIP = Buffer.Slice(Offset, 16).ToArray();
+                Packet.OriginIP = Buffer.Slice(Offset, 16).ToArray();
                 Offset += 16;
-                Packet.SenderPort = BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(Offset));
+                Packet.OriginPort = BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(Offset));
                 Offset += 2; // 68 header size length here
 
                 Header = Packet;
