@@ -21,7 +21,9 @@ using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices.Swift;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Unicode;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace NETConnect;
 
@@ -298,6 +300,8 @@ public class BaseTCPClient
 
     public void HandleAction(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
     {
+        byte[] DATA = Array.Empty<byte>();
+        string UTF8 = string.Empty;
 
         switch (Header.PacketAction)
         {
@@ -307,8 +311,17 @@ public class BaseTCPClient
                 //OnDataReceived.Invoke(Data.Span);
                 break;
             case PacketActionType.PeerJoin:
-                Console.WriteLine("[Client] received PeerJoin event!");
+                Console.WriteLine($"[Client] [{Helper.Self.PeerId}] received PeerJoin");
+                DATA = Data.ToArray();
+                UTF8 = DATA.ToUTF8String();
+
+                //Console.WriteLine("peer joined");
+
+                // Check if in packet init class
+                if (UTF8.IsValidJSON(out PeerTable initPeer)) Self.AddPeer(Helper.ClientHandle, initPeer);
+                else if (UTF8.IsValidJSON(out IEnumerable<PeerTable> initPeers)) Self.AddPeers(Helper.ClientHandle, initPeers);
                 break;
+            //case 
             //default:
             //    OnDataReceived.Invoke(Data.Span);
             //    break;
