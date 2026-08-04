@@ -9,6 +9,7 @@ using System.Drawing;
 using System.Linq;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Authentication;
@@ -129,6 +130,32 @@ namespace NETConnect.MyExtensions
             // Its so that if we want to add custom things to the header and not have it be overriden we can do it
             premadeHeader.ByteLength = DataSize;
 
+
+            /// COPIED SECTION FROM SEND()
+            /// it works from send so it will probably work here too, I really didnt look into it
+            ReadOnlySpan<byte> Packet = premadeHeader.WriteTo(safeBuffer);
+            ReadOnlySpan<byte> DataToSend;
+
+
+            if (Data.Length == 0)
+            {
+                DataToSend = Packet;
+                bytesSent = Connection.Send(Packet);
+            }
+            else
+            {
+                // Uses buffer to create a span big enough to hold both packet header and packet data
+                Span<byte> WriterSpan = new Span<byte>(safeBuffer);
+
+                // Fills span with our packet data
+                Packet.CopyTo(WriterSpan);
+                Data.CopyTo(WriterSpan.Slice(Packet.Length, Data.Length));
+                DataToSend = WriterSpan.Slice(0, Packet.Length + Data.Length);
+                bytesSent = Connection.Send(DataToSend); // Only send parts of the span that we just populated
+            }
+
+            /// COPIED SECTION FROM SEND()
+            /// 
             // Returns -1 by default
             return bytesSent;
         }
