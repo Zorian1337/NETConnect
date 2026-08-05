@@ -5,26 +5,47 @@ using NETConnect.Shared.Multicast;
 using NETConnect.Shared.Packet.Headers;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.Linq;
 using System.Net;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.Swift;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NETConnect.Peers;
 
-public enum PeerState { Server, Peer}
+public enum PeerState 
+{
+    // If it has no clients or clients connected but no peers connected, it is a server
+    Server,
+    // If it has clients and peers connected, it is a Peer
+    Peer
+}
 
 public class Peer
 {
     public Guid PeerId { get; set; } = Guid.NewGuid();
-
+    
+    /// <summary>
+    /// shared key for verifying packet data integritity
+    /// </summary>
+    public ECDsa PrivateSigningKey { get; set; }
     public BaseTCPServer TCPServer { get; set; }
     public List<PeerTable> ConnectedPeers { get; set; } = new List<PeerTable>();
-
     public Multicast Multicast { get; set; }
+
+
+
+    // These events are further down the line compared to the Server and Client 
+    // We need these here so we can access them directly rather than any other way 
+    // We can still access it normally a different way but hooking it here should be way easier for us
+    public event Action OnPeerConnect;
+    public event Action OnPeerDisconnect;
+    public event Action OnPeerDataReceived; //- IDK This is all so confusing 
 
     /// <summary>
     /// Quick way to detect if current state is peer or server
@@ -45,32 +66,58 @@ public class Peer
         // Init our server/client
         var Self = this;
 
+        // Generate our packet signature key
+        
+
         TCPServer = new BaseTCPServer(ref Self, Address, Port);
 
         // Start our server, as having multicast up and our TCPServer is the most important (client is used to connect to other Peer Servers) - might need to change some plans around later 
         TCPServer.StartServer();
+
     }
 
 
 
-
-
-
-
     // Peer grouping related
+    [JsonIgnore] // hidden for now
     public NetworkStats NetStats { get; set; } 
 
-    public IEnumerable<PeerTable> DiscoveredPeers { get; private set; }
+    //public List<PeerTable> DiscoveredPeers { get; private set; }
     public PeerSettings Settings { get; set; } = new PeerSettings()
     {
         // Use this to update peers settings on init
     };
 
+    // Need to setup a system where I can find the - I didnt finish making this comment months ago LOL (probably the GUID of a peer?)
+    public void SendToPeer(Guid PeerId, byte[] DataToShare, PacketActionType ActionType) 
+    {
+        PacketHeader premadeHeader = PacketHeader.GetTraversalHeader(PeerId, TCPServer.Address.ToString(), (ushort)TCPServer.Port, Guid.Empty);
+
+        //SendPacketWithHeader(DataToShare, premadeHeader, true);
+    }
+
+    public void Broadcast(string DataToShare, PacketActionType ActionType) => Broadcast(DataToShare.ToUTF8Byte(), ActionType);
+    public void Broadcast(byte[] DataToShare, PacketActionType ActionType) { // this function needs corrected, when sent it sends as -1 bytes
+        
+        // Im going to just put the senderip and port to the tcp server and assume that that is right
+        PacketHeader premadeHeader = PacketHeader.GetTraversalHeader(PeerId, TCPServer.Address.ToString(), (ushort)TCPServer.Port, Guid.Empty);
+        premadeHeader.PacketAction = ActionType;
+
+        // having issue with send while using SendPacketWithHeader - basically custom header packet probably sends it wrong
+        Parallel.ForEach(TCPServer.Clients, x =>
+        {
+            //int bytesSent = x.PacketHelper.SendPacket(DataToShare); // this works properly but SendPacketWithHeader doesnt
+            int bytesSent = x.PacketHelper.SendPacketWithHeader(DataToShare, premadeHeader, true);
+
+            //TCPServer.InvokeDebugMessage($"PacketHeader: {premadeHeader.ToJSON()}\n\nbytesSent: {bytesSent}");
+        });
+        //Parallel.ForEach(TCPServer.Clients, x => x.PacketHelper.SendPacketWithHeader(DataToShare, premadeHeader, true));
+    }
 
 
     public void AddPeer(ServerClientHandle ClientHandle, PeerTable initPeer)
     {
-        Console.WriteLine($"AddPeer: {initPeer.ToJSON()}");
+        Console.WriteLine($"AddPeer: {initPeer.ToJSON()}"); // I never see this [fixed within last push]
 
         // Send known peers to new client
         ClientHandle.PacketHelper.SendPacket(ConnectedPeers.ToArray().ToJSON().ToUTF8Byte(), PacketActionType.PeerJoin);
@@ -83,18 +130,37 @@ public class Peer
         PeerTable newPeer = new PeerTable(ref Helper, initPeer.PeerId, initPeer.Address, initPeer.Port);
         newPeer.PacketHelper = ClientHandle.PacketHelper;
 
-        ConnectedPeers.Add(newPeer);
-        TCPServer.Clients.Add(ClientHandle);
+        // if connected peers under 2 - connect otherwise just add to peer list and broadcast it
+        // [seems to be an area where we limit the amount of clients connected to one server to split the load] - value need dynmic update support later (same with in multicast.cs)
+        if (ConnectedPeers.Count() <= 10) // updated to 10 just because,this limit doesnt really matter while testing (its gonna be used later in the settings) - [the other AddPeers needs it too]
+        {
+            ConnectedPeers.Add(newPeer);
+            TCPServer.Clients.Add(ClientHandle);
 
-        // Seeing if this makes it easier
-        TCPServer.InvokeOnPeerConnected(ClientHandle, initPeer);
+            // Send this peer my full peer list - look into just sending my peertable - this seems broken why am I sending the new peer to newpeer?
+            //newPeer.GetPacketHelper().SendUTF8Packet(TCPServer.MyPeerTable.DiscoveredPeers.ToJSON(), PacketActionType.PeerJoin);
+
+            // Add peers to my peertable
+            //TCPServer.MyPeerTable.DiscoveredPeers.Add(newPeer);
+
+            // Seeing if this makes it easier - peer broadcast was missing from here
+            TCPServer.InvokeOnPeerConnected(ClientHandle, initPeer); // I dont think I really have anything registered for this
+        }
+
+        // Add peer to my discovered peers
+        TCPServer.MyPeerTable.DiscoveredPeers.Add(newPeer);
+
+        // Send everyone my updated peerlist - including the new peer, this is where it discovers everyone else
+        Broadcast(TCPServer.MyPeerTable.DiscoveredPeers.ToJSON(), PacketActionType.PeerJoin); 
     }
 
-    public void AddPeers(ServerClientHandle ClientHandle, IEnumerable<PeerTable> initPeers, bool UseOriginalVersion = false)
+    public void AddPeers(ServerClientHandle ClientHandle, IEnumerable<PeerTable> initPeers, bool UseOriginalVersion = false) // This was set to false, but I didnt finish setting up what it was gonna be used for
     {
+        Console.WriteLine($"AddPeers: {initPeers.ToJSON()} - intro");
+
         // Make sure our peer list is unique, and make sure the new peer list is unique
         ConnectedPeers = ConnectedPeers.Distinct().ToList();
-        initPeers = initPeers.Distinct().ToList();
+        initPeers = initPeers.Distinct().ToList(); 
 
         // Send known peers to new client
         ClientHandle.PacketHelper.SendPacket(ConnectedPeers.ToArray().ToJSON().ToUTF8Byte(), PacketActionType.PeerJoin);
@@ -103,13 +169,12 @@ public class Peer
         {
             var SelfPeer = this;
 
+            List<PeerTable> UniquePeers = new List<PeerTable>();
             if (UseOriginalVersion)
             {
-                List<PeerTable> UniquePeers = new List<PeerTable>();
-
-                foreach (var peer in newPeers)
+                foreach (var peer in newPeers.Where(x => x.PeerId != SelfPeer.PeerId))
                 {
-                    Console.WriteLine($"AddPeer: {peer.ToJSON()}");
+                    Console.WriteLine($"[foreach] AddPeer: {peer.ToJSON()}");
                     BaseTCPClient connection = new BaseTCPClient(ref SelfPeer);
                     peer.Client = connection;
                     if (connection.TryConnect(peer.Address, peer.Port))
@@ -130,13 +195,48 @@ public class Peer
                     }
                 }
 
-                // Update all peers on the new connections (im being lazy and not making sure that new peers are excluded, it'll help with discovery for now)
-                ConnectedPeers.ForEach(peer => peer.Client.Packer.SendPacket(UniquePeers.ToArray().ToJSON().ToUTF8Byte(), PacketActionType.P2PInt));
+
             }
             else
             {
+                Console.WriteLine($"[Peer.cs] - AddPeers() - Not using original");
                 // Discovery / Max connection system based on (uptime / ping / regions)
+
+                foreach (var peer in newPeers.Where(x => x.PeerId != SelfPeer.PeerId))
+                {
+                    if (ConnectedPeers.Count() <= 10)
+                    {
+                        Console.WriteLine($"[foreach] AddPeer: {peer.ToJSON()}");
+                        BaseTCPClient connection = new BaseTCPClient(ref SelfPeer);
+                        peer.Client = connection;
+                        if (connection.TryConnect(peer.Address, peer.Port))
+                        {
+                            // Add them to unique list
+                            UniquePeers.Add(peer);
+
+                            peer.PacketHelper = ClientHandle.PacketHelper;
+
+                            // Add them to current peer list
+                            ConnectedPeers.Add(peer);
+                            TCPServer.Clients.Add(ClientHandle);
+
+                            //Console.WriteLine("found new peer");
+
+                            // Seeing if this makes it easier
+                            TCPServer.InvokeOnPeerConnected(ClientHandle, peer);
+                        }
+                    }
+
+                    // Add peer to peer collection
+                    TCPServer.MyPeerTable.DiscoveredPeers.Add(peer);
+                }
             }
+
+            // Update all peers on the new connections (im being lazy and not making sure that new peers are excluded, it'll help with discovery for now)
+            // I dont know what P2PInt was meant to do, it was close to starting up the peer for the first time but maybe I moved it into PeerJoined
+            //ConnectedPeers.ForEach(peer => peer.Client.Packer.SendPacket(UniquePeers.ToArray().ToJSON().ToUTF8Byte(), PacketActionType.PeerJoin));
+            //Broadcast(UniquePeers.ToArray().ToJSON().ToUTF8Byte(), PacketActionType.PeerJoin); - broadcast all instead of just the unique ones 
+            Broadcast(TCPServer.MyPeerTable.DiscoveredPeers.ToJSON(), PacketActionType.PeerJoin);
         }
     }
 }
