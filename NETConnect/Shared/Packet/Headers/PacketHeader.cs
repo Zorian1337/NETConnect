@@ -71,6 +71,7 @@ public enum PacketEncryptionType : ushort
     ChaCha20Poly1305
 }
 
+// I think these packets need a direct reference to our peer to make sharing data easier
 public struct PacketHeader
 {
     public PacketHeader() { }
@@ -167,11 +168,13 @@ public struct PacketHeader
     // End of Basic Header 18 length - create dynamic header later
     
 
+    // This apparently isnt populated by default, this always needs to be (to inform others who this was from regardless of it being shared via gossip)
     public Guid OriginPeerId { get; set; }                  // 16 Bytes
     public Guid RecipientPeerId { get; set; } = Guid.Empty; // 16 Bytes
 
     public byte[] OriginIP { get; set; }                    // 16 Bytes for both IPv4 and IPv6
     public ushort OriginPort { get; set; }                  // 2 Bytes
+    //public byte TTL { get; set; } = 7;                      // 1 Byte(s)
 
 
     public const int HeaderSize = 68;           // Originally 18
@@ -197,6 +200,7 @@ public struct PacketHeader
         BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(Offset), OriginPort);
         Offset += 2; // 68 header size length here
 
+       // buffer[Offset++] = TTL; // 69 header size length here
 
         return buffer.Slice(0, HeaderSize); // Returns the amount of bytes that we written to buffer
     }
@@ -246,7 +250,7 @@ public struct PacketHeader
                 Packet.OriginPort = BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(Offset).Span); 
                 Offset += 2; // 68 header size length here
 
-
+                //Packet.TTL = Header.Span[Offset++]; // 69 header size length here
                 Headers = new PacketHeader[] { Packet };
 
                 // Return Header and packet data
@@ -285,6 +289,7 @@ public struct PacketHeader
             Packet.OriginPort = BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(Offset).Span);
             Offset += 2; // 68 header size length here
 
+            //Packet.TTL = buffer.Span[Offset++]; // 69 header size length here
             // Return Header, packet data is probably null
             Headers = new PacketHeader[] { Packet };
 
@@ -329,6 +334,29 @@ public struct PacketHeader
             catch (Exception Ex) { Console.WriteLine(Ex.ToString()); return false; }
         }
         else return false;
+    }
+
+    public PacketHeaderV2 ToPacketHeaderV2()
+    {
+        // [8-5-26]
+        // Looking back now this class is a mess
+        // Glad im finally upgrading the packet structure
+        // Even though the original is barely usable
+
+        return new PacketHeaderV2()
+        {
+            Magic = 0x4E43,
+            Version = 2, // Debating on leaving this at V1, just need it as the V2 format 
+            //HeaderLength = HeaderLength, Already auto defined
+            PayloadLength = ByteLength,
+            PacketId = PacketHeaderV2.NextPacketId(OriginPeerId),
+            Action = (PacketActionV2)((byte)PacketAction),
+            Encoding = (PacketEncodingV2)((byte)PacketEncodingType),
+            Encryption = (PacketEncryptionV2)((byte)PacketEncryptionType),
+            OriginPeerId = OriginPeerId,
+            RecipientPeerId = RecipientPeerId,
+            TTL = 7
+        };
     }
 }
 
