@@ -1,4 +1,5 @@
 ﻿using NETConnect.Encryption.Crypt;
+using NETConnect.Encryption.Hash;
 using NETConnect.MyExtensions.Encryption;
 using NETConnect.Shared.Packet.Headers;
 using System;
@@ -20,9 +21,10 @@ public class SecurityKey
     // My Security Keys
 
 
+    public ECDsa PublicSigningKey { get; set; }
+
     // Remote Security Keys - (Will only have the public RSA key)
     public RSAKeySize RSAKeySize { get; set; }
-
     public RSACrypt.RSAExport LocalRSAKeys { get; set; }
 
     public byte[] RemoteRSAPubKey { get; set; } 
@@ -30,7 +32,6 @@ public class SecurityKey
 
     public int AESKeySize { get; set; }
     public byte[] AESKey { get; set; }
-
     public byte[] ChaChaKey { get; set; }
 
 
