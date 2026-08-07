@@ -7,20 +7,47 @@ using System.Threading.Tasks;
 
 namespace NETConnect.Shared.Packet.Headers
 {
+    // 8-7-26
+    // IM NOT ENTIRELY SURE HOW TO IMPLEMENT THIS
     public enum PacketType: byte
     {
         None = 0,
-        Data = 1,
-        Gossip = 2,
-        Discovery = 3
+        // CONTROLS CONNECTION SUBSETS -> SYN, SYN-ACK, ACK, READY
+        Control = 1,
+        // HANDLES PEER FLOW -> JOIN, LEAVE, DISCOVER ETC
+        Peer = 2,
+        // 
+        Data = 3
     }
 
     
     public enum PacketAction: byte
     {
+        // NONE ON NORMAL DATA
         None = 0,
 
+        // CONNECTION 
+        SYN = 1, SYNACK = 2, ACK = 3, READY = 4, 
+
+        // DATA
+        Broadcast = 5, // DEBATE ON MAKING BROADCAST ONE HOP OR MULTIPLE BASED ON TTL?
+        Gossip = 6,
+
+        // PEER
+        Join = 7, Leave = 8
     }
+
+    // IMPLEMENT THIS SOON
+    // JUST NEED TO UPDATE THE BINARY READ/WRITING AND THE HEADER SIZE
+    public enum PacketRoute : byte
+    {
+        None = 0,
+
+        Direct = 1,
+        Broadcast = 2,
+        Gossip = 3
+    }
+
 
     // WE NEED TO HANDLE THIS PROPERLY 
     // SO BASE IDEA; HEADER IS ALWAYS IN BINARY-
@@ -44,15 +71,6 @@ namespace NETConnect.Shared.Packet.Headers
         RSA,
         ChaCha20Poly1305
 
-    }
-
-    [Flags] 
-    public enum Flags: byte
-    {
-        None = 0,
-        Gossip = 1 << 0,
-        Forward = 1 << 1,
-        Broadcast = 1 << 2,
     }
 
     // This is build to be the routing layer, not the handling layer
