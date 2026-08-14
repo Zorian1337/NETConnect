@@ -15,6 +15,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,6 +26,7 @@ public class BaseTCPServer : BaseServerProperties
 {
     public Peer Self { get; set; }
     public Socket SocketServer { get; set; }
+    
     public CancellationTokenSource ServerToken { get; set; }
     public IPAddress Address { get; set; }
 
@@ -78,7 +80,8 @@ public class BaseTCPServer : BaseServerProperties
 
         Task.Run(() =>
         {
-            NETConnect.Audio.Audio.Init();
+            // reinit later when trying to test audio module 
+            //NETConnect.Audio.Audio.Init();
 
             try
             {
@@ -139,6 +142,7 @@ public class BaseTCPServer : BaseServerProperties
                     //if (Self.TCPServer.ServerToken is null) OnDebugMessage?.Invoke($"ServerToken is null");
                     //else OnDebugMessage?.Invoke($"ServerToken is not null");
 
+                    // Handles advertising the server to the multicast in another thread (so it doesnt block the main thread)
                     Task.Run(async () =>
                     {
                         //OnDebugMessage?.Invoke($"BEFORE Advertising to the multicast : {Self.TCPServer.ServerToken.IsCancellationRequested}"); // 
@@ -155,7 +159,7 @@ public class BaseTCPServer : BaseServerProperties
 
                    //Using this for informational purposes related to peers
 
-                   Task.Run(() => UpdatePeerDisplay());
+                   //Task.Run(async () => await UpdatePeerDisplay());
                 }
 
                 // Handles searching for clients in another thread...
@@ -180,19 +184,26 @@ public class BaseTCPServer : BaseServerProperties
         });
     }
 
-    public void UpdatePeerDisplay()
+    public async Task UpdatePeerDisplay()
     {
-        while (!ServerToken.IsCancellationRequested)
+
+        string LastOut = "";
+        string NewOut = "";
+
+        PeriodicTimer timer = new PeriodicTimer(new TimeSpan(0, 0, 30));
+        while (!ServerToken.IsCancellationRequested && await timer.WaitForNextTickAsync())
         {
-            Thread.Sleep(5000);
+            //Thread.Sleep(5000);
 
             //Clear console for a clean display while doing peer mapping
-            //Console.Clear();
+            //Console.Clear(); 
 
-            Console.WriteLine($"PeerId: {Self.PeerId} - OperationMode: {Self.OperationMode}\n");
+            //Console.WriteLine($"PeerId: {Self.PeerId} - OperationMode: {Self.OperationMode}\n");
+            NewOut += $"PeerId: {Self.PeerId} - OperationMode: {Self.OperationMode}\n";
 
-            if(Self.OperationMode == PeerState.Peer && Self.ConnectedPeers.Count() > 0)
+            if (Self.OperationMode == PeerState.Peer && Self.ConnectedPeers.Count() > 0)
             {
+                // This should be implemented into it by default (add it if it isnt already)
                 // Check if there are any disconnected clients and remove them from our peer list
                 if(Self.ConnectedPeers.Any(x => x.Client.Token.IsCancellationRequested))
                 {
@@ -202,165 +213,51 @@ public class BaseTCPServer : BaseServerProperties
                     Self.TCPServer.Clients.RemoveAll(x => x.ClientToken.IsCancellationRequested);
 
                     Console.WriteLine("Some peers have expired tokens!");
+                    //NewOut += "Some peers have expired tokens!\n";
                 }
 
-                Console.WriteLine($"Connected Peers: {Self.ConnectedPeers.Count()}\n");
+                Console.WriteLine();
+                string Server = $"TCPServer: \n" +
+                    $"Address: {Self.TCPServer.ServerAddress}\n" +
+                    $"Peers: {Self.ConnectedPeers.Count()}\n" +
+                    $"{Self.ConnectedPeers.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}";
+                Console.WriteLine(Server);
+                //Console.WriteLine(Self.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true}));
+                //Console.WriteLine($"Connected Peers: {Self.ConnectedPeers.Count()}\n");
+                //NewOut += $"Connected Peers: {Self.ConnectedPeers.Count()}\n";
 
-                Console.WriteLine($"Peers: \n{String.Join("\n", Self.ConnectedPeers.Select(x => $"{x.PeerId} [{x.Address}:{x.Port}]"))}\n");
+                //Console.WriteLine($"Peers: \n{String.Join("\n", Self.ConnectedPeers.Select(x => $"{x.PeerId} [{x.Address}:{x.Port}]"))}\n");
+                //NewOut += $"Peers: \n{String.Join("\n", Self.ConnectedPeers.Select(x => $"{x.PeerId} [{x.Address}:{x.Port}]"))}\n";
 
-                Console.WriteLine($"MyStats: {Self.NetStats.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
+                //Console.WriteLine($"MyStats: {Self.NetStats.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
+                //NewOut += $"MyStats: {Self.NetStats.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}\n";
+
+                //Console.WriteLine($"MyTable: \n{Self.TCPServer.MyPeerTable.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
+                //NewOut += $"MyTable: \n{Self.TCPServer.MyPeerTable.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}\n";
             }
             else if (Self.OperationMode == PeerState.Server && Self.TCPServer.Clients.Count() > 0)
             {
                 Console.WriteLine($"Connected Clients: {Self.TCPServer.Clients.Count()}\n");
+                //NewOut += $"Connected Clients: {Self.TCPServer.Clients.Count()}\n";
 
                 Console.WriteLine($"Clients: \n{String.Join("\n", Self.TCPServer.Clients.Select(x => $"[{x.Id}]"))}");
+                //NewOut += $"Clients: \n{String.Join("\n", Self.TCPServer.Clients.Select(x => $"[{x.Id}]"))}\n";
             }
 
+            //if(NewOut != LastOut) // this doesnt work
+            //{
+            //    //Console.Clear();
+            //    Console.WriteLine(NewOut);
+            //    LastOut = NewOut;
+            //    NewOut = "";
+            //}
         }
     }
 
-    public (bool HasSentSYN, bool IsAuthorized) TLSV2(Socket Client, (bool HasSentSYN, bool IsAuthorized) ExistingParams, PacketHelper Packer)
+    public async Task HandleClientConnectedV2(Socket client)
     {
-        if (ExistingParams.HasSentSYN && ExistingParams.IsAuthorized) return (true, true);
-
-        bool IsAuthorized = ExistingParams.IsAuthorized;
-        bool HasSentSYN = ExistingParams.HasSentSYN;
-
-
-        if (!HasSentSYN)
-        {
-            PacketAuthentication auth = new PacketAuthentication()
-            {
-                EncryptionType = PacketEncryptionType.RSA,
-                KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
-            };
-
-            string Auth = auth.ToJSON();
-
-            //Console.WriteLine($"sending Auth to {ClientEndPoint}");
-            Packer.SendUTF8Packet(Auth, PacketActionType.SYN);
-            //Console.WriteLine($"[Server] Sent (AuthPacket-RSAPubkey)SYN to client"); //\n{auth.ToJSON()
-            HasSentSYN = true;
-        }
-
-        // Might need to rework this to where it doesnt return anything if its not valid (FIX: set default data length to -1 to symbolize not valid data)
-        byte[] Packet = Client.ReceivePacket(out PacketHeader Header);
-
-        // Ignore packet if nothing was read
-        if (Header.PacketAction != PacketActionType.Empty)
-        {
-            string JSON = string.Empty;
-            PacketAuthentication Auth;
-
-            // Handle only Authorization related requests (and ping just because there is no system for it globally) - (FIX: automatically handle it while we are reading packet data)
-
-            switch (Header.PacketAction)
-            {
-                // Only Respond to SYNAck
-                case PacketActionType.SYNAck:
-                    //Console.WriteLine("[Server] received [SYNAck]");
-
-                    JSON = Packet.ToUTF8String();
-                    if (JSON.IsValidJSON(out Auth))
-                    {
-                        switch (Auth.EncryptionType)
-                        {
-                            case PacketEncryptionType.RSA:
-                                // Set remote RSAPubKey
-                                Packer.EncryptionKeys.SetRemoteRSAKey(Auth.KeyData);
-
-                                // Encrypt testing data to confirm key can be successfully read via client
-                                // Build a packet with encrypted data and include some hashing data that it can be verified against
-
-                                bool SuccessfullyEncryptedData = true;
-                                if(PacketEncrypted.TryEncryptSend(SuccessfullyEncryptedData.ToJSON().ToUTF8Byte(), Auth.EncryptionType, PacketActionType.SYNAck, Packer))
-                                {
-                                    //Console.WriteLine($"[Server] sent testing data encrypted with client RSAPubKey");
-                                }
-                                else
-                                {
-                                    // Report back to the client with some sort of error code indicating that the data either couldnt be encrypted or sent in general (most likely encrypted)
-                                }
-
-
-                                    break;
-                        }
-                    }
-
-
-                    break;
-                case PacketActionType.ACK:
-                    //Console.WriteLine("[Server] received [ACK]");
-
-                    JSON = Packet.ToUTF8String();
-                    //Console.WriteLine(JSON);
-                    //Console.WriteLine($"EncryptionType: {Header.PacketEncryptionType}");
-                    if(Header.PacketEncryptionType != PacketEncryptionType.NONE)
-                    {
-                        // Any encryption goes
-
-                        if(JSON.IsValidJSON(out PacketEncrypted Encrypted))
-                        {
-                            
-
-                            // Check header to see what type of encryption this is using
-                            switch (Header.PacketEncryptionType) 
-                            {
-                                case PacketEncryptionType.RSA:
-                                    // This should be where the client and server both has the right RSA Keys but there also was a symetric key sent
-
-
-                                    // DecryptInto version
-                                    if(Encrypted.TryDecryptInto(Packer.EncryptionKeys.LocalRSAKeys.PrivateKey, out Auth))
-                                    {
-                                        //Console.WriteLine($"[Server] [ACK] {Auth.ToJSON()}");
-                                        //Console.WriteLine($"[Server] ChaChaKey from client {Auth.KeyData.ToJSON()}");
-
-                                        //Console.WriteLine(Encrypted.EncryptionType);
-
-                                        // This will tell us where to store our key!
-                                        switch (Auth.EncryptionType) // Make sure Auth packet is used rather than Encrypted
-                                        {
-                                            case PacketEncryptionType.RSA: // This shouldnt be used yet, so only making ChaCha for now
-                                                break;
-                                            case PacketEncryptionType.ChaCha20Poly1305: // Using ChaCha for our sym key, as its apparently easy to use for low end devices
-                                                //Console.WriteLine("[Server] [ACK] received ChaCha sym key!");
-                                                Packer.EncryptionKeys.ChaChaKey = Auth.KeyData;
-
-                                                // Send client ACK in ChaCha telling them that we have received their key
-                                                if(PacketEncrypted.TryEncryptSend(new PacketAuthentication() { EncryptionType = PacketEncryptionType.ChaCha20Poly1305, KeyData = Auth.KeyData}.ToJSON().ToUTF8Byte(), 
-                                                    PacketEncryptionType.ChaCha20Poly1305, PacketActionType.ACK, Packer))
-                                                {
-                                                    Console.WriteLine("[Server] has authenticated the connection");
-                                                    // Give the client some time to receive this message
-                                                    Thread.Sleep(1000);
-                                                    IsAuthorized = true;
-                                                }
-                                                else
-                                                {
-                                                    // Restart whole process
-                                                    HasSentSYN = false;
-                                                }
-
-                                                break;
-                                        }
-                                    }
-
-                                    break;
-                                case PacketEncryptionType.ChaCha20Poly1305: // This will only ever be valid if we were exchanging other keys as this encryption type 
-
-                                    break;
-                            }
-                        }
-                    }
-                    break;
-            }
-        }
-
-        return (HasSentSYN, IsAuthorized);
+        //Task receiveTask = ReceivePackets
     }
-
 
     public void HandleClientConnected(Socket client)
     {
@@ -370,6 +267,9 @@ public class BaseTCPServer : BaseServerProperties
             //bool IsAuthenticated = false;
 
             string ClientEndPoint = client.RemoteEndPoint.ToString();
+
+            // This server broadcasts itself over Multicast [or however it is planned to work for discovery over the internet]
+            // This handles all peer related code below, as the server has the majority of control of the "peer" 
             Console.WriteLine($"[SERVER] Client connected to the server [{ClientEndPoint}]");
 
             CancellationTokenSource _ServerToken = ServerToken;
@@ -393,7 +293,7 @@ public class BaseTCPServer : BaseServerProperties
             ClientHandle.AddHeartBeat(ref heartBeat);
             Clients.Add(ClientHandle); // Remember to update client Id
 
-
+            //Task.Run(async () => await client.ReadMessage());
 
             // Use ClientHandle to control all aspects of the connection (I believe I wired it that way, that or PacketHelper)
 
@@ -418,8 +318,6 @@ public class BaseTCPServer : BaseServerProperties
 
                 // Continue until authentication is complete
 
-
-
                 if (Packer.IsAuthenticating) continue;
                 if (!Packer.IsAuthenticated)
                 {
@@ -427,10 +325,7 @@ public class BaseTCPServer : BaseServerProperties
                     OnAuthenticationRequested.Invoke(Client, Packer);
 
                 }
-                //Console.WriteLine("FULLY OUT OF AUTHENTICATION");
 
-                //Console.WriteLine("Client passed authentication");
-                //ClientHandle.PacketHelper.SendUTF8Packet("testing");
 
                 //Check for ping every so often - client doesnt need to respond but they at least need to receive the data (if they dont respond to ping we cant check the latency)
                 if (!heartBeat.TrySendHeartBeat(ref Packer, out bool IsDisconnected) && IsDisconnected && !heartBeat.FirstBeat)
@@ -447,8 +342,9 @@ public class BaseTCPServer : BaseServerProperties
                             Self.ConnectedPeers.Remove(PeerInfo.Value.Item2);
 
                             // Announce to all other clients that peer disconnected
-                            //Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave));
-                            Self.Broadcast(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketActionType.PeerLeave);
+                            //Self.ConnectedPeers.ForEach(Peer => Peer.PacketHelper.SendPacket(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketAction.PeerLeave));
+                            Self.Broadcast(PeerInfo.Value.Item2.ToJSON().ToUTF8Byte(), PacketType.Peer, PacketAction.Leave);
+                            
                         }
                     }
                     else Clients.Remove(ClientHandle);
@@ -466,10 +362,10 @@ public class BaseTCPServer : BaseServerProperties
                 //Console.WriteLine($"C++ data received ->\nSize: {bytesRead} - DATA: {string.Join(" ", tempBuffer.Select(x => x.ToString("X2")))}");
 
                 // Automatically read messages, and decrypt everything here if encrypted
-                byte[] Packet = Client.ReceivePacket(out PacketHeader Header);
+                byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
 
                 //Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
-                if (Header.PacketAction != PacketActionType.Empty)
+                if (Header.Action != PacketAction.NONE)
                 {
                     //Console.WriteLine($"C++ data received ->\nSize: {Packet.Length} - DATA: {string.Join(" ", Packet.Select(x => x.ToString("X2")))}");
                     //Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
@@ -478,17 +374,17 @@ public class BaseTCPServer : BaseServerProperties
 
                     //Console.WriteLine($"[Server] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
 
-                    if (Header.PacketEncryptionType != PacketEncryptionType.NONE && Packet.IsValidJSON(out PacketEncrypted encrypted) && encrypted.TryDecrypt(Packer, out byte[] Decrypted))
+                    if (Header.Encryption != PacketEncryption.NONE && Packet.IsValidJSON(out PacketEncrypted encrypted) && encrypted.TryDecrypt(Packer, out byte[] Decrypted))
                     {
                         Packet = Decrypted;
 
-                        //if(Header.PacketAction == PacketActionType.Ping || Header.PacketAction)
+                        //if(Header.PacketAction == PacketAction.Ping || Header.PacketAction)
 
                         //Console.WriteLine($"[Server] [{Header.PacketAction}] [Auto-Decrypted]: {Decrypted.ToUTF8String()}");
                         //Console.WriteLine($"[Server] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
                         OnDataReceived.Invoke(ClientHandle, Header, Packet);
                     }
-                    else if (Header.PacketEncryptionType == PacketEncryptionType.NONE) { OnDataReceived.Invoke(ClientHandle, Header, Packet); }
+                    else if (Header.Encryption == PacketEncryption.NONE) { OnDataReceived.Invoke(ClientHandle, Header, Packet); }
 
                     // Invalid packet - either send it back to the client or handle it here in the peer log idk right now
                     else { }
@@ -506,7 +402,7 @@ public class BaseTCPServer : BaseServerProperties
 
 
 
-                //if (Header.PacketAction != PacketActionType.Empty) continue;
+                //if (Header.PacketAction != PacketAction.Empty) continue;
 
 
 
@@ -527,18 +423,28 @@ public class BaseTCPServer : BaseServerProperties
         // Stay here until we are authenticated
         while (!Packer.IsAuthenticated)
         {
-            byte[] Packet = Client.ReceivePacket(out PacketHeader Header);
-            if (Header.PacketAction != PacketActionType.Empty)
+
+            byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
+
+            if (Header.Action != PacketAction.NONE)
             {
-                switch (Header.PacketAction)
+                switch (Header.Action)
                 {
-                    case PacketActionType.SYN: // SYN from client - client sends peer list
-                        //Console.WriteLine("[Server] [SYN] received");
+                    
+                    default:
+                        // NOTHING ELSE SHOULD BE READ WHILE AUTH IS BEING DONE
+                        // Client sends PeerJoin but cannot be read because we are still here 
+                        Console.WriteLine($"Server received data other than Auth action\n{Packet.ToUTF8String()} - {Header.Action.ToString()}");
+
+                        // Send some type of error response
+                        break;
+                    case PacketAction.SYN: // SYN from client - client sends peer list
+                        Console.WriteLine("[Server] [SYN] received");
 
 
                         if(Packet.IsValidJSON(out Guid PeerId))
                         {
-                            //Console.WriteLine($"[Server] received valid [SYN] from {PeerId}");
+                            Console.WriteLine($"[Server] received valid [SYN] from {PeerId}");
 
                             // If client can find the handle with its socket set the peerId (it should be able to)
                             ServerClientHandle? Handle = Clients.Find(x => x.Connection == Client);
@@ -558,16 +464,19 @@ public class BaseTCPServer : BaseServerProperties
 
                             Auth = new PacketAuthentication()
                             {
-                                EncryptionType = PacketEncryptionType.RSA,
+                                EncryptionType = PacketEncryption.RSA,
                                 KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
                             };
 
-                            Packer.SendUTF8Packet(Auth.ToJSON(), PacketActionType.SYNAck, false);
+                            int sentSYNAck = Packer.SendPacket(Auth.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.SYNACK, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Direct, null);
+
+                            //Packer.SendUTF8Packet(Auth.ToJSON(), PacketAction.SYNAck, false);
+                            // Control, SYNAck
                         }
                         else Console.WriteLine("Invalid SYN");
                         break;
-                    case PacketActionType.ACK:
-                        //Console.WriteLine($"[Server] received [ACK] from {ConnectedPeer.PeerId}");
+                    case PacketAction.ACK:
+                        Console.WriteLine($"[Server] received [ACK] from {ConnectedPeer.PeerId}");
 
                         if(Packet.IsValidJSON(out PacketEncrypted encrypted))
                         {
@@ -577,8 +486,8 @@ public class BaseTCPServer : BaseServerProperties
                             {
                                 //Console.WriteLine($"[Server] [ACK] successfully decrypted packet");
                                 Packer.EncryptionKeys.ChaChaKey = Auth.KeyData;
-                                Packer.SendUTF8Packet(Auth.ToJSON(), PacketActionType.ACK, true, PacketEncryptionType.ChaCha20Poly1305);
-                                
+                                //Packer.SendUTF8Packet(Auth.ToJSON(), PacketAction.ACK, true, PacketEncryption.ChaCha20Poly1305);
+                                // Control, ACK
                             }
                             else Console.WriteLine($"[Server] [ACK] failed to decrypt encrypted packet");
 
@@ -587,9 +496,10 @@ public class BaseTCPServer : BaseServerProperties
                         else Console.WriteLine($"[Server] [ACK] [{ConnectedPeer.PeerId}] failed to parse into encrypted packet...");
 
                         break;
-                    case PacketActionType.Ready:
+                    case PacketAction.READY:
                         Console.WriteLine($"[Server] [Ready] Connection authenticated with [{ConnectedPeer.PeerId}]");
-                        Packer.SendUTF8Packet("<READY>", PacketActionType.Ready, false);
+                        //Packer.SendUTF8Packet("<READY>", PacketAction.Ready, false);
+                        // Control, Ready
                         Packer.IsAuthenticated = true;
                         Packer.IsAuthenticating = false;
                         //Packer.onAuthenticated.Invoke();
@@ -597,6 +507,9 @@ public class BaseTCPServer : BaseServerProperties
                 }
             }
         }
+
+        // End of Auth
+        //Console.WriteLine("Packer Is Authenticated now");
     }
 
 
@@ -606,39 +519,37 @@ public class BaseTCPServer : BaseServerProperties
         byte[] DATA = Array.Empty<byte>();
         string UTF8 = string.Empty;
 
-        switch (Header.PacketAction)
-        {
-            case PacketActionType.Ping: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
-            case PacketActionType.Pong: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
-            case PacketActionType.SYN:
-                break;
+        //switch (Header.PacketAction)
+        //{
+        //    case PacketAction.Ping: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+        //    case PacketAction.Pong: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+        //    case PacketAction.SYN:
+        //        break;
 
+        //    case PacketAction.Data:
+        //        //OnDataReceived.Invoke(Helper.ClientHandle, Data.Span);
+        //        break;
 
+        //    case PacketAction.Voice:
+        //        NETConnect.Audio.Audio.QueueAudio(Data.ToArray());
+        //        break;
 
-            case PacketActionType.Data:
-                //OnDataReceived.Invoke(Helper.ClientHandle, Data.Span);
-                break;
+        //    case PacketAction.PeerJoin:
 
-            case PacketActionType.Voice:
-                NETConnect.Audio.Audio.QueueAudio(Data.ToArray());
-                break;
+        //        DATA = Data.ToArray();
+        //        UTF8 = DATA.ToUTF8String();
 
-            case PacketActionType.PeerJoin:
+        //        //Console.WriteLine("peer joined");
 
-                DATA = Data.ToArray();
-                UTF8 = DATA.ToUTF8String();
+        //        // Check if in packet init class
+        //        if (UTF8.IsValidJSON(out PeerTable initPeer)) Self.AddPeer(Helper.ClientHandle, initPeer);
+        //        else if (UTF8.IsValidJSON(out IEnumerable<PeerTable> initPeers)) Self.AddPeers(Helper.ClientHandle, initPeers);
+        //        break;
 
-                Console.WriteLine("peer joined");
-
-                // Check if in packet init class
-                if (UTF8.IsValidJSON(out PeerTable initPeer)) Self.AddPeer(Helper.ClientHandle, initPeer);
-                else if (UTF8.IsValidJSON(out IEnumerable<PeerTable> initPeers)) Self.AddPeers(Helper.ClientHandle, initPeers);
-                break;
-
-            default:
-                //OnDataReceived.Invoke(Helper.ClientHandle, Data.Span);
-                break;
-        }
+        //    default:
+        //        //OnDataReceived.Invoke(Helper.ClientHandle, Data.Span);
+        //        break;
+        //}
     }
 
     public void InvokeOnPeerConnected(ServerClientHandle ClientHandle, PeerTable initPeer) => OnPeerConnected?.Invoke(ClientHandle, initPeer);
@@ -648,7 +559,7 @@ public class BaseTCPServer : BaseServerProperties
         byte[] DATA = Data.ToArray();
         string UTF8 = DATA.ToUTF8String();
         // Print the message that was received from the client
-        //Console.WriteLine($"Server Received => [{Header.PacketAction}] Encryption: [{Header.PacketEncryptionType}] \"{UTF8}\""); //Client.Buffers.CharBuffer
+        //Console.WriteLine($"Server Received => [{Header.PacketAction}] Encryption: [{Header.PacketEncryption}] \"{UTF8}\""); //Client.Buffers.CharBuffer
         HandleAction(Header, DATA, Client.PacketHelper, Client.HeartBeat);
 
     } 

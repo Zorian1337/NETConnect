@@ -1,21 +1,8 @@
 ﻿using NETConnect.Shared;
 using NETConnect.Shared.Packet;
 using NETConnect.Shared.Packet.Headers;
-using System;
-using System.Buffers.Binary;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.Linq;
-using System.Net.Security;
+using System.Buffers;
 using System.Net.Sockets;
-using System.Reflection.PortableExecutable;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace NETConnect.MyExtensions
 {
@@ -28,236 +15,142 @@ namespace NETConnect.MyExtensions
             if (socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0) return true;
             else return false;
         }
+        public static bool IsSocketConnected(Socket socket)
+        {
+            try
+            {
+                // Make a non-blocking, zero-byte send call.
+                // If it works or throws WAEWOULDBLOCK (10035), the socket is still connected.
+                socket.Send(new byte[0], 0, 0, SocketFlags.None);
+                return true;
+            }
+            catch (SocketException ex)
+            {
+                // Error codes indicating connection issues.
+                if (ex.NativeErrorCode == 10054 ||      // Connection reset by peer.
+                    ex.NativeErrorCode == 10053)        // Connection aborted.
+                {
+                    return false;
+                }
+                // For other errors, the connection might still be valid.
+                return true;
+            }
+        }
+
 
 
         #region PacketHelper stuff...
-        // SUPPORTS PREMADE HEADERS AND PREMADE PAYLOADS (Data is all binary) - KEEPING THIS OUT I PROBABLY DONT NEED IT (POTENTIALLY INEFFICIENT)
-        //public static int Send(this Socket Connection, byte[] Header, byte[] Data)
-        //{
-        //    // parse header here to make sure its valid before we send
+        public static async Task ReadMessage(this Socket Connection)
+        {
+            Console.WriteLine("reading messages");
+            var Pool = ArrayPoolBuffer.GetNewOrExistingArrayPool(Connection);
+            await Pool.ReceiveAsync();
+        }
+        
+        
 
-        //    if(Header.Length == 0 || Header.Length < 2) return -1;
+        // THIS NEEDS TO USE ArrayPool SO THAT IT CAN SCALE WITH TIME
+        public static ReceivedPacket<IPacketHeaderIdentifier>? ReceivedPacket(this Socket Connection, ref PacketHelper Helper)
+        {
+            int bytesRead = -1;
 
+            if (Connection.IsGracefulShutdown()) return null;
+            Console.WriteLine($"receiving -> {Connection.Available}");
 
-        //    ushort magic = BinaryPrimitives.ReadUInt16LittleEndian(Header);
+            Span<byte> preheader = stackalloc byte[8];
+            if (!(Connection.Available > 8)) return null;
+            int receivedBytes = Connection.Receive(preheader, SocketFlags.Peek);
+            Console.WriteLine($"peaked at bytes\nReceived:Peaked -> {receivedBytes}");
 
-        //    if(magic == PacketHeaderV2.MAGIC)
-        //    {
-        //        // CHECK FOR PACKET VERSION TO VERIFY
+            // THIS SHOULD BE INCLUDED IN ALL FUTURE VERSIONS OF HEADERS UNLESS THERE IS A PREHEADER CHANGE
+            if (!(receivedBytes == 8 && IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength) info)))
+            {
+                Console.WriteLine("if bytes arent 8 and IsValidHeader=false");
+                return null;
+            }
+            Console.WriteLine("RECEIVED => 8 BYTES, PREHEADER VALID");
 
+            // SUPPORT FRAGMENTATION LATER (IDC ABOUT IT RIGHT NOW BUT WE'LL NEED IT FOR FORMATS THAT CANT SEND HUGE AMOUNTS OF DATA)
 
-        //    }
-        //    else
-        //    {
-        //        // CHECK IF THIS IS V1 HEADER
-        //    }
+            int PacketLength = (info.HeaderLength + info.PayloadLength);
 
+            // SEE IF FULL PAYLOAD IS THERE FOR NOW, IF NOT RETURN EMPTY, AS WE WANT IT ALL AT ONCE
+            if (!(Connection.Available >= PacketLength)) return null;
+            //byte[] Packet = new byte[PacketLength];
+            byte[] Packet = ArrayPool<byte>.Shared.Rent(PacketLength);
+            Console.WriteLine("PACKET READY FOR DOWNLOAD");
 
-        //    return 0;
-        //}
+            try
+            {
 
+            }
+            catch {  }
+            finally { ArrayPool<byte>.Shared.Return(Packet); } // Return shared buffer
 
-        /// <summary>
-        /// The purpose of this is to be the one to create the header manually in a different function and pass it here 
-        /// The premade header will still for validation purposes set the datas size here so you wont have to yourself
-        /// just everything regarding encryption and other information prior
-        /// </summary>
-        /// <param name="Connection"></param>
-        /// <param name="Data"></param>
-        /// <param name="premadeHeader"></param>
-        /// <returns></returns>
-        //public static int SendWithHeader(this Socket Connection, byte[] Data, PacketHeader premadeHeader) 
-        //{
-        //    int bytesSent = -1;
-        //    int DataSize, DataToWrite = 0;
-        //    if (Data is not null)
-        //    {
-        //        DataSize = Data.Length;
-        //        DataToWrite = Data.Length;
-        //    }
-        //    else
-        //    {
-        //        DataSize = 0;
-        //        DataToWrite = -1;
-        //    }
-
-        //    // Buffer which holds our network data to send
-        //    byte[] safeBuffer = new byte[PacketHeader.HeaderSize + DataSize];
-
-        //    // Only add our data size to the premade Header - this feels so backwards but its needed
-        //    // Its so that if we want to add custom things to the header and not have it be overriden we can do it
-        //    premadeHeader.PayloadLength = DataSize;
+            return null; // default return type
+        }
 
 
-        //    /// COPIED SECTION FROM SEND()
-        //    /// it works from send so it will probably work here too, I really didnt look into it
-        //    ReadOnlySpan<byte> Packet = premadeHeader.WriteTo(safeBuffer);
-        //    ReadOnlySpan<byte> DataToSend;
+        // THIS NEEDS TO USE ArrayPool SO THAT IT CAN SCALE WITH TIME 
+        public static byte[] ReceivePacket(this Socket Connection, ref PacketHelper Helper, out PacketHeader Header)
+        {
+            Header = new PacketHeader();
+            int bytesRead = -1;
+
+            if (Connection.IsGracefulShutdown()) return Array.Empty<byte>();
+            //Console.WriteLine($"receiving -> {Connection.Available}");
+
+            // CHECK FOR OUR PREHEADER - IF NOT THERE RETURN EMPTY
+            // use span for this small amount of data, then when we read it all use ArrayPool (im not used to using this)
+            Span<byte> preheader = stackalloc byte[8];
+            //Console.WriteLine($"available -> {Connection.Available}");
+            if (!(Connection.Available > 8)) return Array.Empty<byte>();    // stop using available and IsGracefulShutdown() eventually
+            int receivedBytes = Connection.Receive(preheader, SocketFlags.Peek);
+            Console.WriteLine($"peaked at bytes\nReceived:Peaked -> {receivedBytes}");
+
+            // THIS SHOULD BE INCLUDED IN ALL FUTURE VERSIONS OF HEADERS UNLESS THERE IS A PREHEADER CHANGE
+            if (!(receivedBytes == 8 && IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength) info)))
+            {
+                Console.WriteLine("if bytes arent 8 and IsValidHeader=false");
+                return Array.Empty<byte>();
+            }
+            Console.WriteLine("RECEIVED => 8 BYTES, PREHEADER VALID");
 
 
-        //    if (Data.Length == 0)
-        //    {
-        //        DataToSend = Packet;
-        //        bytesSent = Connection.Send(Packet);
-        //    }
-        //    else
-        //    {
-        //        // Uses buffer to create a span big enough to hold both packet header and packet data
-        //        Span<byte> WriterSpan = new Span<byte>(safeBuffer);
+            // SUPPORT FRAGMENTATION LATER (IDC ABOUT IT RIGHT NOW BUT WE'LL NEED IT FOR FORMATS THAT CANT SEND HUGE AMOUNTS OF DATA)
 
-        //        // Fills span with our packet data
-        //        Packet.CopyTo(WriterSpan);
-        //        Data.CopyTo(WriterSpan.Slice(Packet.Length, Data.Length));
-        //        DataToSend = WriterSpan.Slice(0, Packet.Length + Data.Length);
-        //        bytesSent = Connection.Send(DataToSend); // Only send parts of the span that we just populated
-        //    }
+            int PacketLength = (info.HeaderLength + info.PayloadLength);
 
-        //    /// COPIED SECTION FROM SEND()
-        //    /// 
-        //    // Returns -1 by default
-        //    return bytesSent;
-        //}
+            // SEE IF FULL PAYLOAD IS THERE FOR NOW, IF NOT RETURN EMPTY, AS WE WANT IT ALL AT ONCE
+            if (!(Connection.Available >= PacketLength)) return Array.Empty<byte>();
+            //byte[] Packet = new byte[PacketLength];
+            byte[] Packet = ArrayPool<byte>.Shared.Rent(PacketLength);
+            Console.WriteLine("PACKET READY FOR DOWNLOAD");
 
-        //public static int Send(this Socket Connection, byte[] Data, PacketAction ActionType, PacketEncryption EncryptionType = PacketEncryption.NONE)
-        //{
-        //    //Console.WriteLine("SEND DEBUG");
-        //    // Added to help handle invalid data 
-        //    int DataSize, DataToWrite = 0;
-        //    if (Data is not null)
-        //    {
-        //        DataSize = Data.Length;
-        //        DataToWrite = Data.Length;
-        //    }
-        //    else
-        //    {
-        //        DataSize = 0;
-        //        DataToWrite = -1;
-        //    }
+            try
+            {
+                bytesRead = Connection.Receive(Packet, 0, PacketLength, SocketFlags.None);
+                if (bytesRead == 0 || bytesRead != PacketLength) return Array.Empty<byte>();
+                Console.WriteLine($"PACKET DOWNLOADED -> {bytesRead}");
 
+                Console.WriteLine($"Received => {BitConverter.ToString(Packet)} - im here!!!");
+                Span<byte> HeaderSpan = Packet.AsSpan(8).Slice(0, info.HeaderLength-8);
+                //Console.WriteLine($"[DEBUG] -> {BitConverter.ToString(HeaderSpan.ToArray())}");
+                //Console.WriteLine("after span");
+                byte[] _Header = Header.BuildFullHeader(info, HeaderSpan);
+                //Console.WriteLine("after build");
+                //Console.WriteLine($"FullPacket => {BitConverter.ToString(_Header)}");
 
-        //    // Get needed buffer size at start
-        //    byte[] safeBuffer = new byte[PacketHeader.HeaderSize + DataSize]; 
+                Header = PacketHeader.FromBinaryHeader(_Header.AsSpan());
+                //Console.WriteLine("after frombinary");
+                Console.WriteLine($"Header => {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
 
-        //    int bytesSent = -1;
+                return Packet.AsSpan(info.HeaderLength, info.PayloadLength).ToArray();
+            }
+            catch { return Array.Empty<byte>(); }
+            finally { ArrayPool<byte>.Shared.Return(Packet); }
 
-        //    PacketHeader Header = new PacketHeader(DataToWrite, ActionType, EncryptionType);
-        //    //Console.WriteLine($"Send - {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
-
-        //    //Console.WriteLine(Header);
-
-        //    ReadOnlySpan<byte> Packet = Header.WriteTo(safeBuffer);
-        //    ReadOnlySpan<byte> DataToSend;
-
-
-        //    if (Data.Length == 0) {
-        //        DataToSend = Packet;
-        //        bytesSent = Connection.Send(Packet);
-        //    }
-        //    else
-        //    {
-        //        // Uses buffer to create a span big enough to hold both packet header and packet data
-        //        Span<byte> WriterSpan = new Span<byte>(safeBuffer);
-
-        //        // Fills span with our packet data
-        //        Packet.CopyTo(WriterSpan);
-        //        Data.CopyTo(WriterSpan.Slice(Packet.Length, Data.Length));
-        //        DataToSend = WriterSpan.Slice(0, Packet.Length + Data.Length);
-        //        bytesSent = Connection.Send(DataToSend); // Only send parts of the span that we just populated
-        //    }
-
-        //    // Output the data we send as bytes for debugging
-        //    //Console.WriteLine($"C# data sent ->\n[{ActionType.ToString()}] - [{EncryptionType.ToString()}] -> Size: {DataToSend.Length} - DATA: {string.Join(" ", DataToSend.ToArray().Select(x => x.ToString("X2")))}"); //.Select(x => x.ToString("X2")
-
-        //    return bytesSent;
-        //}
-
-        //public static byte[] ReceivePacket(this Socket Connection, out PacketHeader Header)
-        //{
-        //    Header = default;
-        //    int bytesRead = -1;
-
-        //    // Handles connection heartbeat/timeout - sending/receiving data (should automatically update the beats if the data goes through)
-        //    if (Connection.IsGracefulShutdown()) return Array.Empty<byte>();
-
-        //    if (Connection.HasValidHeader(out Header))
-        //    {
-        //        byte[] Buffer = new byte[Header.PayloadLength];
-
-        //        bytesRead = Connection.Receive(Buffer, 0, Header.PayloadLength, SocketFlags.None);
-
-        //        //Console.WriteLine($"ReceivePacket - {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
-
-        //        if (bytesRead > 0) return Buffer;
-        //        else return Array.Empty<byte>();
-        //    }
-        //    else return Array.Empty<byte>();
-        //}
-        //  8/6/26 GOT INTERRUPTIONS
-        //public static byte[] ReceivePacket(this Socket Connection)
-        //{
-        //    // Idea; RECEIVES PACKET THEN PARSES HEADER
-        //    // DECREMENTS TTL, THEN FORWARDS TO OTHER PEER IF NOT MEANT FOR SELF
-
-        //    // Handles connection heartbeat/timeout - sending/receiving data (should automatically update the beats if the data goes through)
-        //    if (Connection.IsGracefulShutdown()) return Array.Empty<byte>();
-
-        //    // POTENTIAL AUTO PARSERS FUNCTION HERE 
-            
-        //}
-        //public static bool HasValidHeader(this Socket Connection)
-        //{
-        //    if (Connection.IsGracefulShutdown() || Connection.Available < 4) return false;
-
-        //    byte[] peak = new byte[4];
-
-        //    try
-        //    {
-        //        if(Connection.Available < 4)
-        //        {
-
-        //        }
-
-        //        int bytesRead = Connection.Receive(peak, 0, SocketFlags.Peek);
-
-        //        if (bytesRead < 0) return false;
-        //    }
-        //    catch (Exception ex) { return false; }
-            
-
-
-
-        //}
-
-        //public static bool HasValidHeader(this Socket Connection, out PacketHeader Header)
-        //{
-        //    Header = default;
-
-
-
-
-        //    if (Connection.Available >= PacketHeader.HeaderSize)
-        //    {
-        //        byte[] TempBuffer = new byte[PacketHeader.HeaderSize];
-
-        //        // NOTE: DISREGARD THE PEAK, THIS IS WHERE WE PULL OUR HEADER OUT OF THE STREAM 
-        //        // Peak at our data, get the length of our header and data (PacketHeader.HeaderSize + data length)
-        //        Connection.Receive(TempBuffer, PacketHeader.HeaderSize, SocketFlags.None);
-
-        //        try
-        //        {
-        //            if (PacketHeader.ValidateHeader(TempBuffer, out Header))
-        //            {
-        //                //Console.WriteLine("valid header size");
-        //                //Console.WriteLine($"HasValidHeader - {Header.ByteLength} {Header.PacketAction.ToString()} {Header.SentAt}");
-        //                return true;
-        //            }
-        //        }
-        //        catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine(Ex.ToString()); return default; } // If any error just return, as its probably not valid
-        //    }
-
-        //    return false;
-        //}
-
+        }
         #endregion
 
     }
