@@ -10,7 +10,7 @@
 //namespace NETConnect.Shared.Packet.Headers;
 
 
-//public enum PacketActionType : ushort // ushort is 2 bytes
+//public enum PacketAction : ushort // ushort is 2 bytes
 //{
 //    Empty = 0,
 //    Ping, Pong,
@@ -63,7 +63,7 @@
 //}
 
 
-//public enum PacketEncryptionType : ushort 
+//public enum PacketEncryption : ushort 
 //{
 //    NONE = 0,
 //    AES, 
@@ -76,18 +76,18 @@
 //{
 //    public PacketHeader() { }
 
-//    public PacketHeader(int ByteLength, PacketActionType PacketAction, PacketEncodingType PacketEncodingType)
+//    public PacketHeader(int ByteLength, PacketAction PacketAction, PacketEncodingType PacketEncodingType)
 //    {
 //        this.ByteLength = ByteLength;
 //        this.PacketAction = PacketAction;
 //        this.PacketEncodingType = PacketEncodingType;
 //    }
 
-//    public PacketHeader(int ByteLength, PacketActionType PacketAction, PacketEncryptionType EncryptionType)
+//    public PacketHeader(int ByteLength, PacketAction PacketAction, PacketEncryption EncryptionType)
 //    {
 //        this.ByteLength = ByteLength;
 //        this.PacketAction = PacketAction;
-//        PacketEncryptionType = EncryptionType;
+//        PacketEncryption = EncryptionType;
 //    }
 
 //    public bool IsSenderIPv4() 
@@ -160,9 +160,9 @@
 
 //    // Basic Header - Maybe add a HeaderLength before ByteLength so we can have dynamic header sizes 
 //    public int ByteLength { get; set; }
-//    public PacketActionType PacketAction { get; set; } = PacketActionType.Empty;
+//    public PacketAction PacketAction { get; set; } = PacketAction.Empty;
 //    public PacketEncodingType PacketEncodingType { get; set; } = PacketEncodingType.UTF8; // Set default to UTF8 as that is what we are using and decoding into
-//    public PacketEncryptionType PacketEncryptionType { get; set; } = PacketEncryptionType.NONE;
+//    public PacketEncryption PacketEncryption { get; set; } = PacketEncryption.NONE;
 //    public long SentAt { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
     
 //    // End of Basic Header 18 length - create dynamic header later
@@ -186,7 +186,7 @@
 //        BinaryPrimitives.WriteInt32LittleEndian(buffer, ByteLength);                             // Ints are 4 bytes
 //        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(4), (ushort)PacketAction);         // Slice into the buffer holding the int from the first insert
 //        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(6), (ushort)PacketEncodingType);   // Does the same as above but includes the Packet action (adds 2 more bytes for the ushort) 
-//        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(8), (ushort)PacketEncryptionType); // Skips last 8 to write the next 2
+//        BinaryPrimitives.WriteUInt16LittleEndian(buffer.Slice(8), (ushort)PacketEncryption); // Skips last 8 to write the next 2
 //        BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(10), SentAt);                       // Skips first 10 to write the next 8
 //        // End of Basic Header - starts at 18
         
@@ -233,9 +233,9 @@
                 
 //                // Basic Header - 18 Length
 //                Packet.ByteLength = DataLength;
-//                Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(4).Span);
+//                Packet.PacketAction = (PacketAction)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(4).Span);
 //                Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Header.Slice(6).Span);
-//                Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
+//                Packet.PacketEncryption = (PacketEncryption)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
 //                Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(10).Span);
 //                // End of Basic Header - starts at 18
 
@@ -273,9 +273,9 @@
 //            //Console.WriteLine("single packet");
 //            PacketHeader Packet = new PacketHeader();
 //            Packet.ByteLength = BinaryPrimitives.ReadInt32LittleEndian(buffer.Span);
-//            Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4).Span);
+//            Packet.PacketAction = (PacketAction)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(4).Span);
 //            Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(6).Span);
-//            Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
+//            Packet.PacketEncryption = (PacketEncryption)BinaryPrimitives.ReadUInt16LittleEndian(buffer.Slice(8).Span);
 //            Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer.Slice(10).Span);
 
 //            // I dont really like doing it with the offset, makes things look sloppy
@@ -312,9 +312,9 @@
 //            {
 //                PacketHeader Packet = new PacketHeader();
 //                Packet.ByteLength = BinaryPrimitives.ReadInt32LittleEndian(Buffer);
-//                Packet.PacketAction = (PacketActionType)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(4));
+//                Packet.PacketAction = (PacketAction)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(4));
 //                Packet.PacketEncodingType = (PacketEncodingType)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(6));
-//                Packet.PacketEncryptionType = (PacketEncryptionType)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(8));
+//                Packet.PacketEncryption = (PacketEncryption)BinaryPrimitives.ReadUInt16LittleEndian(Buffer.Slice(8));
 //                Packet.SentAt = BinaryPrimitives.ReadInt64LittleEndian(Buffer.Slice(10));
 
 //                // I dont really like doing it with the offset, makes things look sloppy
@@ -352,7 +352,7 @@
 //            PacketId = PacketHeaderV2.NextPacketId(OriginPeerId),
 //            Action = (PacketActionV2)((byte)PacketAction),
 //            Encoding = (PacketEncodingV2)((byte)PacketEncodingType),
-//            Encryption = (PacketEncryptionV2)((byte)PacketEncryptionType),
+//            Encryption = (PacketEncryptionV2)((byte)PacketEncryption),
 //            OriginPeerId = OriginPeerId,
 //            RecipientPeerId = RecipientPeerId,
 //            TTL = 7
