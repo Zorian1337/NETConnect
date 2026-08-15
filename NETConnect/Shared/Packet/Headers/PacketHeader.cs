@@ -4,6 +4,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace NETConnect.Shared.Packet.Headers
@@ -89,6 +90,7 @@ namespace NETConnect.Shared.Packet.Headers
         1 +  // Version
         1 +  // HeaderLength
         4 +  // PayloadLength
+        8 +  // SentAt
         8 +  // PacketId
         1 +  // Type
         1 +  // Action
@@ -108,11 +110,18 @@ namespace NETConnect.Shared.Packet.Headers
         public byte Version { get; set; } = 2;                  // 1 byte 
         public byte HeaderLength { get; set; } = HeaderSize;    // 1 bytes
         public int PayloadLength { get; set; }                  // 4 bytes
+        public long SentAt { get; set; }                        // 8 bytes
+
         public ulong PacketId { get; set; }                     // 8 bytes
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public PacketType Type { get; set; }                    // 1 bytes
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public PacketAction Action { get; set; }                // 1 bytes
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public PacketEncoding Encoding { get; set; }            // 1 bytes
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public PacketEncryption Encryption { get; set; }        // 1 bytes
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public PacketRoute Route { get; set; }                  // 1 bytes
         public Guid OriginPeerId { get; set; }                  // 16 bytes
         public Guid RecipientPeerId { get; set; } = Guid.Empty; // 16 bytes
@@ -128,7 +137,7 @@ namespace NETConnect.Shared.Packet.Headers
             this.Encryption = Encryption;
             this.Route = Route;
             this.OriginPeerId = OriginPeerId;
-
+            this.SentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             this.PacketId = NextPacketId(OriginPeerId);
             if(RecipientPeerId != null) this.RecipientPeerId = RecipientPeerId.Value;
             else this.RecipientPeerId = Guid.Empty;
@@ -149,6 +158,9 @@ namespace NETConnect.Shared.Packet.Headers
             data[offset++] = HeaderLength;
             BinaryPrimitives.WriteInt32LittleEndian(data[offset..], PayloadLength);
             offset += 4;
+
+            BinaryPrimitives.WriteInt64BigEndian(data[offset..], SentAt);
+            offset += 8; 
 
             BinaryPrimitives.WriteUInt64LittleEndian(data[offset..], PacketId);
             offset += 8;
@@ -194,6 +206,9 @@ namespace NETConnect.Shared.Packet.Headers
             //Console.WriteLine($"PayloadLength: {PayloadLength}");
             offset += 4;
 
+            long SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer[offset..]);
+            offset += 8;
+
             ulong PacketID = BinaryPrimitives.ReadUInt64LittleEndian(buffer[offset..]);
             offset += 8;
 
@@ -216,6 +231,7 @@ namespace NETConnect.Shared.Packet.Headers
                 Version = Version,
                 HeaderLength = HeaderLength,
                 PayloadLength = PayloadLength,
+                SentAt = SentAt,
                 PacketId = PacketID,
                 Action = Action,
                 Encoding = Encoding,
@@ -236,20 +252,23 @@ namespace NETConnect.Shared.Packet.Headers
             ushort magic = BinaryPrimitives.ReadUInt16LittleEndian(buffer);
             offset += 2;
             if (magic != 0x4E43) return default; // reject packet if its not our magic
-            Console.WriteLine($"[DEBUG]:FromBinaryHeader -> Magic valid");
+            //Console.WriteLine($"[DEBUG]:FromBinaryHeader -> Magic valid");
 
             byte Version = buffer[offset++];
             byte HeaderLength = buffer[offset++];
             // LIMITS VERSION AT 2 RIGHT NOW 
             // ALSO PREVENTS INVALID HEADER SIZES
             if (Version != 2 || HeaderLength != HeaderSize) return default;
-            Console.WriteLine($"[DEBUG]:FromBinaryHeader -> Magic valid");
+            //Console.WriteLine($"[DEBUG]:FromBinaryHeader -> Magic valid");
             //Console.WriteLine($"offset: {offset}");
             //Console.WriteLine($"Payload bytes: {Convert.ToHexString(buffer.Slice(0,4))}");
 
             int PayloadLength = BinaryPrimitives.ReadInt32LittleEndian(buffer[offset..]);
             //Console.WriteLine($"PayloadLength: {PayloadLength}");
             offset += 4;
+
+            long SentAt = BinaryPrimitives.ReadInt64LittleEndian(buffer[offset..]);
+            offset += 8;
 
             ulong PacketID = BinaryPrimitives.ReadUInt64LittleEndian(buffer[offset..]);
             offset += 8;
@@ -274,6 +293,7 @@ namespace NETConnect.Shared.Packet.Headers
                 Version = Version,
                 HeaderLength = HeaderLength,
                 PayloadLength = PayloadLength,
+                SentAt = SentAt,
                 PacketId = PacketID,
                 Type = Type, 
                 Action = Action,
@@ -301,19 +321,19 @@ namespace NETConnect.Shared.Packet.Headers
         }
 
         
-        public byte[] BuildFullHeader((ushort Magic, byte Version, byte HeaderLength, int PayloadLength) info, Span<byte> header)
+        public byte[] BuildFullHeader((ushort Magic, byte Version, byte HeaderLength, int PayloadLength, long SentAt) info, Span<byte> header)
         {
-            Console.WriteLine("[DEBUG]:BuildFullHeader - init");
+            //Console.WriteLine("[DEBUG]:BuildFullHeader - init");
             // HANDLE INVALID DATA - JUST NEED TO WORK OUT THE CASES WHERE THIS GETS TRIGGERED
-            if (header.Length != info.HeaderLength - 8 && header.Length != info.HeaderLength) return Array.Empty<byte>();
-            Console.WriteLine("[DEBUG]:BuildFullHeader - first");
+            if (header.Length != info.HeaderLength - 16 && header.Length != info.HeaderLength) return Array.Empty<byte>();
+            //Console.WriteLine("[DEBUG]:BuildFullHeader - first");
 
 
             // VALID DATA CASES; 
             // SUBTRACTS THE PREHEADER INFORMATION FROM THE ARRAY TO DETECT IF ITS PERFECTLY ALIGNED WITH THAT LENGTH IF REMOVED
-            if (header.Length == (info.HeaderLength - 8))
+            if (header.Length == (info.HeaderLength - 16))
             {
-                Console.WriteLine("HEADER LENGTH = H - 8");
+                //Console.WriteLine("HEADER LENGTH = H - 16");
 
                 // THIS IS THE PERFECT CASE BUT SHOULDNT BE THE ONLY CASE
                 // THIS SHOULD BE USED TO GRAB HEADER DATA THEN HELP TO BUILD IT INTO THE OTHER EXTRACTED DATA SO THAT NO EFFECIENTCY IS LOST
@@ -329,6 +349,9 @@ namespace NETConnect.Shared.Packet.Headers
 
                 BinaryPrimitives.WriteInt32LittleEndian(FullHeader[offset..], info.PayloadLength);
                 offset += 4;
+
+                BinaryPrimitives.WriteInt64LittleEndian(FullHeader[offset..], info.SentAt);
+                offset += 8;
 
                 // END OF PREHEADER (EXISTS LIKE THIS ON ALL NEW HEADER VERSIONS)
 
@@ -354,16 +377,16 @@ namespace NETConnect.Shared.Packet.Headers
             return Array.Empty<byte>();
         }
 
-        public byte[] BuildFullHeader((ushort Magic, byte Version, byte HeaderLength, int PayloadLength) info, byte[] header)
+        public byte[] BuildFullHeader((ushort Magic, byte Version, byte HeaderLength, int PayloadLength, long SentAt) info, byte[] header)
         {
             // HANDLE INVALID DATA - JUST NEED TO WORK OUT THE CASES WHERE THIS GETS TRIGGERED
             if ((HeaderLength != header.Length || header.Length != (HeaderLength + PayloadLength))) return Array.Empty<byte>();
 
             // VALID DATA CASES; 
             // SUBTRACTS THE PREHEADER INFORMATION FROM THE ARRAY TO DETECT IF ITS PERFECTLY ALIGNED WITH THAT LENGTH IF REMOVED
-            if (header.Length == (HeaderLength - 8))
+            if (header.Length == (HeaderLength - 16))
             {
-                Console.WriteLine("HEADER LENGTH = H - 8");
+                Console.WriteLine("HEADER LENGTH = H - 16");
 
                 // THIS IS THE PERFECT CASE BUT SHOULDNT BE THE ONLY CASE
                 // THIS SHOULD BE USED TO GRAB HEADER DATA THEN HELP TO BUILD IT INTO THE OTHER EXTRACTED DATA SO THAT NO EFFECIENTCY IS LOST
@@ -379,6 +402,9 @@ namespace NETConnect.Shared.Packet.Headers
 
                 BinaryPrimitives.WriteInt32LittleEndian(FullHeader.AsSpan(offset), PayloadLength);
                 offset += 4;
+
+                BinaryPrimitives.WriteInt64LittleEndian(FullHeader[offset..], info.SentAt);
+                offset += 8;
 
                 // END OF PREHEADER (EXISTS LIKE THIS ON ALL NEW HEADER VERSIONS)
 
