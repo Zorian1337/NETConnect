@@ -29,6 +29,7 @@ public class PacketHelper
     /// </summary>
     public CancellationTokenSource Token { get; private set; }
 
+    // This can be later named to IdentityKeys, as the keys are different per identity rather than just seperate encryption keys
     public SecurityKey EncryptionKeys { get; private set; }
 
 
@@ -70,10 +71,85 @@ public class PacketHelper
         this.EncryptionKeys = new SecurityKey(KeySize, RSACrypt.CreateExport(KeySize));
     }
 
+    //public int SendPacket(byte[] Payload, PacketType Type, PacketAction Action, Packet)
+    public int SendPacket(byte[] Payload, PacketType Type, PacketAction Action, PacketEncoding Encoding, PacketEncryption Encryption, PacketRoute Route, Guid? RecipientPeerId = null)
+    {
+        // IF WE HAVE NO CLIENTS OR PEERS DROP THIS PACKET SENDING AS ERROR 
+        //if (!(Self.ConnectedPeers.Count() > 0 || Self.TCPServer.Clients.Count() > 0)) return -1; // Disabled as this wont let our first packet through
 
+        // DO EVERYTHING IN THIS ONE FUNCTION
 
-    //public int SendStandardPacket(string UTF8String, PacketActionType ActionType) => SendStandardPacket(UTF8String.ToUTF8Byte(), ActionType)
-    //public int SendStandardPacket(byte[] UTF8Data, PacketActionType ActionType)
+        // - BUILD HEADER - PAYLOAD LENGTH WOULD NEED RECALCULATED AFTER ENCRYPTED
+        PacketHeader header = new PacketHeader(Payload, Type, Action, Encoding, Encryption, Route, Self.PeerId, RecipientPeerId, 7);
+        //Console.WriteLine($"[DEBUG]:SendPacket:Header -> \n{header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
+
+        // -- ENCRYPT DATA IF NEED BE
+        // IF ENCRYPTION ENABLED AND RETURNS A NEGATIVE OR NULL VALUE RETURN -1
+        byte[] Encrypted = [];
+        if (Encryption != PacketEncryption.NONE)
+        {
+
+            switch (Encryption)
+            {
+                case PacketEncryption.AES: break;
+                case PacketEncryption.RSA: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.RemoteRSAPubKey, PacketEncryption.RSA); break;
+                case PacketEncryption.ChaCha20Poly1305: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.ChaChaKey, PacketEncryption.ChaCha20Poly1305); break;
+            }
+
+            if (Encrypted is null || Encrypted.Length == 0) return -1;
+            else header.PayloadLength = Encrypted.Length;
+        } // DO THIS LATER SO WE CAN MAKE SURE EVERYTHING AT LEAST WORKS 
+
+        // --- FINALIZE DATA TO BE SENT
+        byte[] Finalized = new byte[header.HeaderLength + header.PayloadLength];
+        byte[] HeaderArray = header.ToBinaryHeader();
+        HeaderArray.CopyTo(Finalized, 0);
+
+        if ((Encrypted is null || Encrypted.Length == 0))
+        {
+            Finalized = new byte[header.HeaderLength + header.PayloadLength];
+            HeaderArray = header.ToBinaryHeader();
+            HeaderArray.CopyTo(Finalized, 0);
+
+            Array.Copy(Payload, 0, Finalized, HeaderArray.Length, Payload.Length);
+
+        }
+        else
+        {
+            header.PayloadLength = Encrypted.Length;
+            Finalized = new byte[header.HeaderLength + header.PayloadLength];
+            HeaderArray = header.ToBinaryHeader();
+            HeaderArray.CopyTo(Finalized, 0);
+
+            Array.Copy(Encrypted, 0, Finalized, HeaderArray.Length, Encrypted.Length);
+        }
+
+        // ---- HANDLE ROUTING TYPES 
+        // DISPLAY DEBUG PACKET OUTPUT
+        //Console.WriteLine($"[DEBUG]:SendPacket -> \n{BitConverter.ToString(Finalized)}");
+
+        // directly send to the current connection, intented for them.
+        if (Route == PacketRoute.Direct && RecipientPeerId is null) return Connection.Send(Finalized);
+        else
+        {
+            // IF DIRECT + RECIPIENT VALID; 
+            if(Self.ConnectedPeers.Any(x => x.PeerId == RecipientPeerId))
+            {
+                // IF WE ARE CONNECTED TO THIS PEER
+                // SET ROUTE TO DIRECT REGARDLESS OF WHAT IT IS (dont actually waste resources doing this)
+                // WE'LL JUST IGNORE ANY NEW ROUTING IN THE RECEIVE PEER
+                return Connection.Send(Finalized);
+            }
+            //else if ()
+        }
+
+        // THIS IS LEFT COMPLETELY UNFINISHED, COME BACK HERE AND FINISH IT LATER 
+
+        return -1;
+    }
+
+    //public int SendStandardPacket(string UTF8String, PacketAction ActionType) => SendStandardPacket(UTF8String.ToUTF8Byte(), ActionType)
+    //public int SendStandardPacket(byte[] UTF8Data, PacketAction ActionType)
     //{
     //    // data will either be encrypted or not encrypted but its all based on the current peer settings
 
@@ -87,195 +163,161 @@ public class PacketHelper
     //    return -1;
     //}
 
-    public int SendUTF8Packet(string UTF8Data, PacketActionType Type = PacketActionType.Data, bool IsEncryptionEnabled = true, PacketEncryptionType EncryptionType = PacketEncryptionType.NONE) => SendPacket(UTF8Data.ToUTF8Byte(), Type, IsEncryptionEnabled, EncryptionType);
-    public int SendPacket(byte[] Data, PacketActionType Type = PacketActionType.Data, bool IsEncryptionEnabled = true, PacketEncryptionType EncryptionType = PacketEncryptionType.NONE)
-    {
-        int bytesSent = -1;
-
-        //// Create a basic header here
-        //PacketHeader header = new PacketHeader(0, Type, EncryptionType);
-        //header.send - maybe I can avoid altering these functions 
-
-        try
-        {
-            // data will either be encrypted or not encrypted but its all based on the current peer settings
-
-            if (IsEncryptionEnabled)
-            {
-                // Use custom encryption type but keys need to be stored for this
-                if (EncryptionType != PacketEncryptionType.NONE) bytesSent = SendEncryptedPacket(Data, EncryptionType, Type, false);
-                // Also check for TLS completed before trying to send auto encrypted messages
-                else if (Self.Settings is not null && Self.Settings.IsEncryptionEnabled) // if encryption is enabled, we need to guarentee our data gets autodecrypted
-                {
-                    //Console.WriteLine($"Sending [{Type}] as [{Self.Settings.EncryptionType}]");
-                    //Console.WriteLine($"Sending [{Type}] as encrypted data"); 
-                    if (Self.Settings.EncryptionType != PacketEncryptionType.NONE) {  bytesSent = SendEncryptedPacket(Data, Self.Settings.EncryptionType, Type, false); }
-                    else {  bytesSent = Connection.Send(Data, Type); }
-                }
-                else bytesSent = Connection.Send(Data, Type);
-            }
-            else bytesSent = Connection.Send(Data, Type);
-
-        }
-        catch (Exception Ex) { Debug.WriteLine($"Error In (SendPacket): {Ex.ToString()}"); }
-
-        return bytesSent;
-    }
-
-    public int SendPacketWithHeader(byte[] Data, PacketHeader PremadeHeader, bool IsEncryptionEnabled)
-    {
-        int bytesSent = -1;
-
-        // Just pass it through as is (only thing this function does is just add the data size to header)
-        if (!IsEncryptionEnabled) bytesSent = Connection.SendWithHeader(Data, PremadeHeader);
-        else 
-        {
-            if (PremadeHeader.PacketEncryptionType != PacketEncryptionType.NONE) { bytesSent = SendEncryptedPacketWithHeader(Data, PremadeHeader, false); }
-            else if (Self.Settings is not null && Self.Settings.IsEncryptionEnabled) 
-            {
-                // Sets our encryption type here - if its not set already
-                PremadeHeader.PacketEncryptionType = Self.Settings.EncryptionType;
-
-                if (Self.Settings.EncryptionType != PacketEncryptionType.NONE) { bytesSent = SendEncryptedPacketWithHeader(Data, PremadeHeader, false); }
-                // unencrypted version of IsEncryptionEncrypted when its enabled
-                else bytesSent = Connection.SendWithHeader(Data, PremadeHeader);
-            }
-            // unencrypted version of IsEncryptionEncrypted when its enabled
-            else bytesSent = Connection.SendWithHeader(Data, PremadeHeader);
-        }
-
-        return bytesSent;
-    }
-
-    /// <summary>
-    /// Sends already encrypted messages over the socket 
-    /// </summary>
-    /// <param name="Data">JSON of "PacketEncrypted" with metadata to help us decrypt this data later</param>
-    /// <param name="EncryptionType">Type of encryption used </param>
-    /// <param name="ActionType">The area that this data will be used at</param>
-    /// <returns></returns>
-    public int SendEncryptedPacket(byte[] Data, PacketEncryptionType EncryptionType, PacketActionType ActionType, bool IsAlreadyEncryptedData = true)
-    {
-        int bytesSent = -1;
-
-        // at some point we need to modify this to allow for empty packets, so we can just use PacketActionType without anything else
-        if (Data is null || Data.Length == 0) return bytesSent;
-
-        if (IsAlreadyEncryptedData) bytesSent = Connection.Send(Data, ActionType, EncryptionType);
-        else
-        {
-            //Console.WriteLine("Manually encrypting data");
-            // Manually encrypt the data here using stored encryption keys
-
-            byte[] Key = Array.Empty<byte>();
-            //Console.WriteLine($"Using encryption type {EncryptionType}");
-            switch (EncryptionType)
-            {
-                case PacketEncryptionType.RSA: Key = EncryptionKeys.RemoteRSAPubKey; break;
-                case PacketEncryptionType.ChaCha20Poly1305: Key = EncryptionKeys.ChaChaKey; break;
-            }
-
-            if (Key is not null && Key.Length > 0)
-            {
-                //Console.WriteLine("Key was greator than 0");
-                Data = PacketEncrypted.EncryptUT8Bytes(Data, Key, EncryptionType);
-                bytesSent = Connection.Send(Data, ActionType, EncryptionType);
-                //Console.WriteLine("SendEncryptedPacket - Encrypted and sent data manually");
-            }
-            // Sends unenecrypted version if key not valid (we probably dont want this in the end)
-            else bytesSent = Connection.Send(Data, ActionType);
-
-
-        }
-
-        return bytesSent;
-    }
-
-    public int SendEncryptedPacketWithHeader(byte[] Data, PacketHeader premadeHeader, bool IsAlreadyEncryptedData = true) 
-    {
-        int bytesSent = -1;
-
-        // at some point we need to modify this to allow for empty packets, so we can just use PacketActionType without anything else
-        if (Data is null || Data.Length == 0) return bytesSent;
-
-        if (IsAlreadyEncryptedData) bytesSent = Connection.SendWithHeader(Data, premadeHeader);
-        else
-        {
-            byte[] Key = Array.Empty<byte>();
-            //Console.WriteLine($"Using encryption type {EncryptionType}");
-            switch (premadeHeader.PacketEncryptionType)
-            {
-                case PacketEncryptionType.RSA: Key = EncryptionKeys.RemoteRSAPubKey; break;
-                case PacketEncryptionType.ChaCha20Poly1305: Key = EncryptionKeys.ChaChaKey; break;
-            }
-
-            if (Key is not null && Key.Length > 0)
-            {
-                Data = PacketEncrypted.EncryptUT8Bytes(Data, Key, premadeHeader.PacketEncryptionType);
-                bytesSent = Connection.SendWithHeader(Data, premadeHeader);
-                //Console.WriteLine("SendEncryptedPacket - Encrypted and sent data manually");
-            }
-            // Sends unenecrypted version (we probably dont want this in the end)
-            else bytesSent = Connection.SendWithHeader(Data, premadeHeader);
-        }
-
-        return bytesSent;
-    }
-
-    /// <summary>
-    /// we want to pas the key and the encryption type, so it can encrypted and put into a class in this function
-    /// </summary>
-    /// <typeparam name="KeyDataForPacket"></typeparam>
-    /// <param name="unencrypted"></param>
-    /// <param name="Func"></param>
-    /// <param name="Type"></param>
-    /// <param name="RequireEncryption"></param>
-    /// <returns></returns>
-    //public int SendunEncryptedPacket(byte[] unencrypted, byte[] Key, PacketEncryptionType EncryptionType, PacketActionType Type = PacketActionType.Data, bool RequireEncryption = true)
+    //public int SendUTF8Packet(string UTF8Data, PacketAction Type = PacketAction.Data, bool IsEncryptionEnabled = true, PacketEncryption EncryptionType = PacketEncryption.NONE) => SendPacket(UTF8Data.ToUTF8Byte(), Type, IsEncryptionEnabled, EncryptionType);
+    //public int SendPacket(byte[] Data, PacketAction Type = PacketAction.Data, bool IsEncryptionEnabled = true, PacketEncryption EncryptionType = PacketEncryption.NONE)
     //{
-
-    //    // Automatically wrap our byte arrays in encrypted streams based on our params and existing saved settings (meaning it will fail encryption if none are set)
-
-    //    // Goal of this function is to help automatically send and decrypt encrypted packets so when they are read from stream they arent even encrypted
     //    int bytesSent = -1;
 
+    //    //// Create a basic header here
+    //    //PacketHeader header = new PacketHeader(0, Type, EncryptionType);
+    //    //header.send - maybe I can avoid altering these functions 
 
-    //    byte[] dataToSend = default;
-    //    PacketHeader? Header = default;
-
-    //    PacketHMAC HMAC = default;
-
-    //    switch (EncryptionType)
+    //    try
     //    {
-    //        case PacketEncryptionType.RSA:
+    //        // data will either be encrypted or not encrypted but its all based on the current peer settings
 
-    //            break;
+    //        if (IsEncryptionEnabled)
+    //        {
+    //            // Use custom encryption type but keys need to be stored for this
+    //            if (EncryptionType != PacketEncryption.NONE) bytesSent = SendEncryptedPacket(Data, EncryptionType, Type, false);
+    //            // Also check for TLS completed before trying to send auto encrypted messages
+    //            else if (Self.Settings is not null && Self.Settings.IsEncryptionEnabled) // if encryption is enabled, we need to guarentee our data gets autodecrypted
+    //            {
+    //                //Console.WriteLine($"Sending [{Type}] as [{Self.Settings.EncryptionType}]");
+    //                //Console.WriteLine($"Sending [{Type}] as encrypted data"); 
+    //                if (Self.Settings.EncryptionType != PacketEncryption.NONE) {  bytesSent = SendEncryptedPacket(Data, Self.Settings.EncryptionType, Type, false); }
+    //                else {  bytesSent = Connection.Send(Data, Type); }
+    //            }
+    //            else bytesSent = Connection.Send(Data, Type);
+    //        }
+    //        else bytesSent = Connection.Send(Data, Type);
 
-    //        case PacketEncryptionType.ChaCha20Poly1305:
-    //            byte[] encrypted = unencrypted.EncryptChaCha(Key, out ChaCha.ChaChaKeys Keys);
-    //            HMAC = new PacketHMAC(Key, encrypted, Keys.nonce, Keys.tag);
-    //            dataToSend = HMAC.ToJSON().ToUTF8Byte();
-    //            Header = new PacketHeader(dataToSend.Length, Type, PacketEncodingType.JSON);
-    //            break;
     //    }
-
-    //    // Key meta data that we can decrypt our message with
-    //    //KeyDataForPacket KeyData = Func.DynamicInvoke();
-        
-    //    try { bytesSent = Connection.Send(dataToSend, Type, Header); }
-    //    catch (Exception Ex) { Console.WriteLine($"Error In (SendVoicePacket): {Ex.ToString()}"); Debug.WriteLine($"Error In (SendVoicePacket): {Ex.ToString()}"); }
+    //    catch (Exception Ex) { Debug.WriteLine($"Error In (SendPacket): {Ex.ToString()}"); }
 
     //    return bytesSent;
     //}
 
-    public int SendVoicePacket(byte[] VoiceData)
-    {
-        int bytesSent = -1;
+    //public int SendPacketWithHeader(byte[] Data, PacketHeader PremadeHeader, bool IsEncryptionEnabled)
+    //{
+    //    int bytesSent = -1;
 
-        try { bytesSent = Connection.Send(VoiceData, PacketActionType.Voice); }
-        catch (Exception Ex) { Console.WriteLine($"Error In (SendVoicePacket): {Ex.ToString()}"); Debug.WriteLine($"Error In (SendVoicePacket): {Ex.ToString()}"); }
+    //    // Just pass it through as is (only thing this function does is just add the data size to header)
+    //    if (!IsEncryptionEnabled) bytesSent = Connection.SendWithHeader(Data, PremadeHeader);
+    //    else 
+    //    {
+    //        if (PremadeHeader.Encryption != PacketEncryption.NONE) { bytesSent = SendEncryptedPacketWithHeader(Data, PremadeHeader, false); }
+    //        else if (Self.Settings is not null && Self.Settings.IsEncryptionEnabled) 
+    //        {
+    //            //Console.WriteLine("Self settings not null and IsEncryptedEnabled");
 
-        return bytesSent;
-    }
+    //            // Sets our encryption type here - if its not set already
+    //            PremadeHeader.Encryption = Self.Settings.EncryptionType;
+
+    //            if (Self.Settings.EncryptionType != PacketEncryption.NONE) { bytesSent = SendEncryptedPacketWithHeader(Data, PremadeHeader, false); } //Console.WriteLine("as encrypted");
+    //            // unencrypted version of IsEncryptionEncrypted when its enabled
+    //            else { bytesSent = Connection.SendWithHeader(Data, PremadeHeader); } //Console.WriteLine("as not encrypted");
+    //        }
+    //        // unencrypted version of IsEncryptionEncrypted when its enabled
+    //        else bytesSent = Connection.SendWithHeader(Data, PremadeHeader);
+
+    //        //Console.WriteLine($"Actual Data Length: {Data.Length} - {PremadeHeader.PacketAction.ToString()}");
+    //        //Console.WriteLine($"SendPacketWithHeader-DEBUG - \n${PremadeHeader.ToJSON()}\n\nBytesSent: {bytesSent}");
+    //    }
+
+    //    return bytesSent;
+    //}
+
+    ///// <summary>
+    ///// Sends already encrypted messages over the socket 
+    ///// </summary>
+    ///// <param name="Data">JSON of "PacketEncrypted" with metadata to help us decrypt this data later</param>
+    ///// <param name="EncryptionType">Type of encryption used </param>
+    ///// <param name="ActionType">The area that this data will be used at</param>
+    ///// <returns></returns>
+    //public int SendEncryptedPacket(byte[] Data, PacketEncryption EncryptionType, PacketAction ActionType, bool IsAlreadyEncryptedData = true)
+    //{
+    //    int bytesSent = -1;
+
+    //    // at some point we need to modify this to allow for empty packets, so we can just use PacketAction without anything else
+    //    if (Data is null || Data.Length == 0) return bytesSent;
+
+    //    if (IsAlreadyEncryptedData) bytesSent = Connection.Send(Data, ActionType, EncryptionType);
+    //    else
+    //    {
+    //        //Console.WriteLine("Manually encrypting data");
+    //        // Manually encrypt the data here using stored encryption keys
+
+    //        byte[] Key = Array.Empty<byte>();
+    //        //Console.WriteLine($"Using encryption type {EncryptionType}");
+    //        switch (EncryptionType)
+    //        {
+    //            case PacketEncryption.RSA: Key = EncryptionKeys.RemoteRSAPubKey; break;
+    //            case PacketEncryption.ChaCha20Poly1305: Key = EncryptionKeys.ChaChaKey; break;
+    //        }
+
+    //        if (Key is not null && Key.Length > 0)
+    //        {
+    //            //Console.WriteLine("Key was greator than 0");
+    //            Data = PacketEncrypted.EncryptUT8Bytes(Data, Key, EncryptionType);
+    //            bytesSent = Connection.Send(Data, ActionType, EncryptionType);
+    //            //Console.WriteLine("SendEncryptedPacket - Encrypted and sent data manually");
+    //        }
+    //        // Sends unenecrypted version if key not valid (we probably dont want this in the end)
+    //        else bytesSent = Connection.Send(Data, ActionType);
+
+
+    //    }
+
+    //    return bytesSent;
+    //}
+
+    //public int SendEncryptedPacketWithHeader(byte[] Data, PacketHeader premadeHeader, bool IsAlreadyEncryptedData = true) 
+    //{
+    //    int bytesSent = -1;
+
+    //    // at some point we need to modify this to allow for empty packets, so we can just use PacketAction without anything else
+    //    if (Data is null || Data.Length == 0) { return bytesSent; } //Console.WriteLine("SendEncryptedPacketWithHeader - data is null, Data = 0"); 
+
+
+
+    //    if (IsAlreadyEncryptedData) { bytesSent = Connection.SendWithHeader(Data, premadeHeader); } //Console.WriteLine("data is already encrypted"); 
+    //    else
+    //    {
+    //        //Console.WriteLine("SendEncryptedPacketWithHeader - IsNotEncrypted");
+    //        byte[] Key = Array.Empty<byte>();
+    //        //Console.WriteLine($"SendEncryptedPacketWithHeader - encryption type {premadeHeader.PacketEncryption}");
+    //        switch (premadeHeader.Encryption)
+    //        {
+    //            case PacketEncryption.RSA: Key = EncryptionKeys.RemoteRSAPubKey; break;
+    //            case PacketEncryption.ChaCha20Poly1305: Key = EncryptionKeys.ChaChaKey; break;
+    //        }
+
+
+    //        if (Key is not null && Key.Length > 0)
+    //        {
+    //            //Console.WriteLine("SendEncryptedPacketWithHeader - KeyNotNull, Key>0");
+    //            Data = PacketEncrypted.EncryptUT8Bytes(Data, Key, premadeHeader.Encryption);
+    //            bytesSent = Connection.SendWithHeader(Data, premadeHeader);
+    //            //Console.WriteLine("SendEncryptedPacket - Encrypted and sent data manually");
+    //        }
+    //        // Sends unenecrypted version (we probably dont want this in the end)
+    //        else bytesSent = Connection.SendWithHeader(Data, premadeHeader);
+    //    }
+
+    //    return bytesSent;
+    //}
+
+    // DISABLED FOR NOW JUST TO PREVENT ERRORS
+    // WE WANT THIS TO BE HERE JUST  AS A REFERENCE FOR LATER
+    //public int SendVoicePacket(byte[] VoiceData)
+    //{
+    //    int bytesSent = -1;
+
+    //    try { bytesSent = Connection.Send(VoiceData, PacketAction.Voice); }
+    //    catch (Exception Ex) { Console.WriteLine($"Error In (SendVoicePacket): {Ex.ToString()}"); Debug.WriteLine($"Error In (SendVoicePacket): {Ex.ToString()}"); }
+
+    //    return bytesSent;
+    //}
 
 }
