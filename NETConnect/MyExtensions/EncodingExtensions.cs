@@ -36,13 +36,15 @@ public static class EncodingExtensions
 
 
     public static bool IsValidJSON<T>(this byte[] UTF8, out T data, JsonSerializerOptions? Options = null) => UTF8.ToUTF8String().IsValidJSON<T>(out data, Options);
+
+    public static bool IsValidJSON<T>(this Span<byte> UTF8, out T data, JsonSerializerOptions? Options = null) => UTF8.ToUTF8String().IsValidJSON<T>(out data, Options);
     public static bool IsValidJSON<T>(this string JSON, out T data, JsonSerializerOptions? Options = null)
     {
         data = default;
 
         if (string.IsNullOrEmpty(JSON) || string.IsNullOrWhiteSpace(JSON)) return false;
 
-        Console.WriteLine($"IsValidJSON - {JSON}");
+        //Console.WriteLine($"IsValidJSON - {JSON}");
 
         try
         {
@@ -65,5 +67,7 @@ public static class EncodingExtensions
 
     public static byte[] ToUTF8Byte(this string UTF8String) => Encoding.UTF8.GetBytes(UTF8String);
     public static string ToUTF8String(this byte[] UTF8Byte) => Encoding.UTF8.GetString(UTF8Byte);
+    public static string ToUTF8String(this Span<byte> UTF8Byte) => Encoding.UTF8.GetString(UTF8Byte);
+
 
 }

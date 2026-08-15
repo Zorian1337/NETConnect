@@ -2,7 +2,9 @@
 using NETConnect.Shared.Packet;
 using NETConnect.Shared.Packet.Headers;
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
+using System.Reflection.PortableExecutable;
 
 namespace NETConnect.MyExtensions
 {
@@ -50,12 +52,13 @@ namespace NETConnect.MyExtensions
         
 
         // THIS NEEDS TO USE ArrayPool SO THAT IT CAN SCALE WITH TIME
+        // This is example 1 of using ArrayPool while our receives are being moved over to async 
         public static ReceivedPacket<IPacketHeaderIdentifier>? ReceivedPacket(this Socket Connection, ref PacketHelper Helper)
         {
             int bytesRead = -1;
 
             if (Connection.IsGracefulShutdown()) return null;
-            Console.WriteLine($"receiving -> {Connection.Available}");
+            //Console.WriteLine($"receiving -> {Connection.Available}");
 
             Span<byte> preheader = stackalloc byte[8];
             if (!(Connection.Available > 8)) return null;
@@ -82,12 +85,104 @@ namespace NETConnect.MyExtensions
 
             try
             {
+                bytesRead = Connection.Receive(Packet, 0, PacketLength, SocketFlags.None);
+                if (bytesRead == 0 || bytesRead != PacketLength) return null;
+                Console.WriteLine($"PACKET DOWNLOADED -> {bytesRead}");
 
+                Console.WriteLine($"Received => {BitConverter.ToString(Packet)} - im here!!!");
+                Span<byte> HeaderSpan = Packet.AsSpan(8).Slice(0, info.HeaderLength - 8);
+                //Console.WriteLine($"[DEBUG] -> {BitConverter.ToString(HeaderSpan.ToArray())}");
+                //Console.WriteLine("after span");
+                var Temp = new PacketHeader();
+                byte[] _Header = Temp.BuildFullHeader(info, HeaderSpan);
+                //Console.WriteLine("after build");
+                //Console.WriteLine($"FullPacket => {BitConverter.ToString(_Header)}");
+
+                var Header = PacketHeader.FromBinaryHeader(_Header.AsSpan());
+                //Console.WriteLine("after frombinary");
+                Console.WriteLine($"Header => {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
+                //ReceivedPacket<IPacketHeaderIdentifier> Received;
+
+                // CHECK IF WE NEED TO FORWARD THIS PACKET**
+                // - IGNORE PACKETS WE'VE ALREADY SEEN
+                // - ONLY CONSUME PACKET IF ITS MEANT FOR US 
+                // - REFER TO SEND FOR COMPLETE INFORMATION
+
+                //  IGNORE HERE BEFORE PROCESSING
+                //      DECREMENT TTL
+
+                if (Header.RecipientPeerId == Guid.Empty)
+                {
+                    // IF EMPTY AND DIRECT, ITS MEANT FOR US
+                    if(Header.Route == PacketRoute.Direct)
+                    {
+                        Console.WriteLine("Peer received packet meant for them [no PeerId, and Direct]");
+
+                        ReceivedPacket<IPacketHeaderIdentifier> Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
+
+                        // Signals ArrayPool Transfer
+                        Packet = null;
+
+                        return Received;
+                    }
+                    else if (Header.Route == PacketRoute.Broadcast)
+                    {
+                        // THIS IS MEANT FOR US 
+                        // DO NOT REBROADCAST EVEN USING TTL
+                        Console.WriteLine("Peer received packet meant for everyone [Broadcast]");
+
+
+
+                        return null;
+                    }
+                    else if (Header.Route == PacketRoute.Gossip)
+                    {
+                        // THIS IS ALSO MEANT FOR US 
+                        // GOSSIP TO OTHER PEERS BASED ON TTL
+                        Console.WriteLine("Peer received packet meant to gossip [Select based on TTL]");
+
+
+
+                        return null;
+                    }
+                }
+                else if(Header.RecipientPeerId == Helper.Self.PeerId)
+                {
+                    Console.WriteLine("Peer received packet meant for them [PeerId]");
+                    ReceivedPacket<IPacketHeaderIdentifier> Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
+
+                    // Signals ArrayPool Transfer
+                    Packet = null;
+
+                    return Received;
+                }
+                else
+                {
+                    Console.WriteLine("Peer received packet that is included in the unkown scope");
+                    // FORWARD OUR PACKET HERE BASED ON WHATEVER ROUTING RULES WE HAVE 
+                    // OR DIRECTLY TO THE RECIPIENT ITS MEANT FOR 
+                    // BROADCAST 
+
+                    // NOT SURE WHAT THIS SCOPE IS FOR REALLY AS EVERYTHING ELSE IS DEFINED ABOVE
+
+                    return null;
+                }
+
+                //Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
+
+                //// SIGNALED ArrayPool Transfer
+                //Packet = null;
+
+                return null;
             }
-            catch {  }
-            finally { ArrayPool<byte>.Shared.Return(Packet); } // Return shared buffer
-
-            return null; // default return type
+            catch (Exception Ex) { Console.WriteLine($"[DEBUG]:ReceivedPacket Exception -> {Ex}"); return null; }
+            finally
+            {
+                if(Packet is not null)
+                {
+                    ArrayPool<byte>.Shared.Return(Packet);
+                }
+            }
         }
 
 
