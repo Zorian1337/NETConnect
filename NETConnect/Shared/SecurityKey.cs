@@ -71,25 +71,25 @@ public class SecurityKey
     }
 
 
-    public byte[] GetSecurityKey(PacketEncryptionType EncryptionType, bool IsRemote = false, bool IsPrivate = false)
+    public byte[] GetSecurityKey(PacketEncryption EncryptionType, bool IsRemote = false, bool IsPrivate = false)
     {
         byte[] Key = Array.Empty<byte>();
 
         switch (EncryptionType)
         {
-            case PacketEncryptionType.RSA:
+            case PacketEncryption.RSA:
 
                 if (IsRemote) Key = RemoteRSAPubKey;
                 else if (IsPrivate) Key = LocalRSAKeys.PrivateKey;
                 else if (!IsPrivate) Key = LocalRSAKeys.PublicKey;
                 break;
-            case PacketEncryptionType.ChaCha20Poly1305: Key = ChaChaKey; break;
+            case PacketEncryption.ChaCha20Poly1305: Key = ChaChaKey; break;
         }
 
         return Key;
     }
 
-    public bool TryGetKey(PacketEncryptionType EncryptionType, out byte[] Key, bool IsRemote = false, bool IsPrivate = false)
+    public bool TryGetKey(PacketEncryption EncryptionType, out byte[] Key, bool IsRemote = false, bool IsPrivate = false)
     {
         Key = GetSecurityKey(EncryptionType, IsRemote, IsPrivate);
 
