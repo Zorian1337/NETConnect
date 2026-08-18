@@ -47,6 +47,8 @@ public class BaseTCPClient
     public event Action<Socket, PacketHelper> OnAuthenticationRequested;
 
     public event Action<PacketHelper, PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
+    public event Action<PacketHelper, ReceivedPacket<IPacketHeaderIdentifier>> OnPacketReceived;
+
 
     // USING VERSION FROM PACKER TO SEE IF IT'LL HAVE ITS OWN SEPERATED FROM THE SERVER ITSELF
     //public bool IsAuthenticating = false;
@@ -91,7 +93,7 @@ public class BaseTCPClient
 
                 // Don't return true on this function until its registered as Authenticated
                 // Will need to redo later, as it wont always need to be authenticated
-                do { Thread.Sleep(100); }
+                do { Thread.Sleep(1); }
                 while (Packer.IsAuthenticating);
                 return true;
             }
@@ -171,9 +173,15 @@ public class BaseTCPClient
                     return;
                 }
 
+                //byte[] Packet = Client.ReceivePacket(ref _Packer, out PacketHeader Header);
 
-                byte[] Packet = Client.ReceivePacket(ref _Packer, out PacketHeader Header);
-                if (Header.Action != PacketAction.NONE)
+                var received = Client.ReceivedPacket(ref _Packer, out PacketHeader Header);
+                if (received is null) continue;
+                Span<byte> Packet = received.GetPayloadSpan();
+
+                OnPacketReceived?.Invoke(_Packer, received);
+
+                if (Header.Type != PacketType.NONE)
                 {
                     //Console.WriteLine($"[Client] [{Header.PacketAction}]: {Packet.ToUTF8String()}");
 
@@ -218,8 +226,13 @@ public class BaseTCPClient
         // Stay here until we are authenticated
         while (!Packer.IsAuthenticated)
         {
-            byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
-            if (Header.Action != PacketAction.NONE)
+            //byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
+
+            using var received = Client.ReceivedPacket(ref Packer, out PacketHeader Header);
+            if (received is null) continue;
+            Span<byte> Packet = received.GetPayloadSpan();
+
+            if (Header.Type != PacketType.NONE)
             {
                 switch (Header.Action)
                 {
@@ -253,7 +266,7 @@ public class BaseTCPClient
                             //Packer.SendEncryptedPacket(Auth.ToJSON().ToUTF8Byte(), PacketEncryption.RSA, PacketAction.ACK, false);
                             Packer.SendPacket(Auth.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.ACK, PacketEncoding.NONE, PacketEncryption.RSA, PacketRoute.Direct, null);
 
-                            //Console.WriteLine($"[Client] sent encrypted ChaChaKey using RSA");
+                            Console.WriteLine($"[Client] sent encrypted ChaChaKey using RSA");
                         }
                         else Console.WriteLine($"[Client] invalid Auth Packet");
 
@@ -296,6 +309,31 @@ public class BaseTCPClient
 
         byte[] DATA = Array.Empty<byte>();
         string UTF8 = string.Empty;
+
+        switch (Header.Type)
+        {
+            case PacketType.Control:
+                switch (Header.Action)
+                {
+                    case PacketAction.Ping: HeartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+                    case PacketAction.Pong: HeartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+                }
+                break;
+            case PacketType.Peer:
+                switch (Header.Action)
+                {
+                    case PacketAction.Join:
+
+                        Console.WriteLine("[TCPClient] peer joined");
+
+                        // Check if in packet init class
+                        if (UTF8.IsValidJSON(out PeerTable initPeer)) Self.AddPeer(Helper.ClientHandle, initPeer);
+                        else if (UTF8.IsValidJSON(out IEnumerable<PeerTable> initPeers)) Self.AddPeers(Helper.ClientHandle, initPeers);
+                        break;
+                }
+                
+                break;
+        }
 
         //switch (Header.Action)
         //{
