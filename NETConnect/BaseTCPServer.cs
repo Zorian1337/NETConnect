@@ -47,6 +47,7 @@ public class BaseTCPServer : BaseServerProperties
     public event Action<Socket> OnClientDisconnected;
     public event Action<Socket, PacketHelper> OnAuthenticationRequested;
     public event Action<ServerClientHandle, PacketHeader, ReadOnlySpan<byte>> OnDataReceived;
+    public event Action<PacketHelper, ReceivedPacket<IPacketHeaderIdentifier>> OnPacketReceived;
 
     // Peer related - this can probably hold the clienthandle and the peer side 
     public event Action<ServerClientHandle, PeerTable> OnPeerConnected;
@@ -145,15 +146,22 @@ public class BaseTCPServer : BaseServerProperties
                     // Handles advertising the server to the multicast in another thread (so it doesnt block the main thread)
                     Task.Run(async () =>
                     {
-                        //OnDebugMessage?.Invoke($"BEFORE Advertising to the multicast : {Self.TCPServer.ServerToken.IsCancellationRequested}"); // 
-                        // Multicast broadcasting of the server (only way we can get clients for now)
+                        // [8-17-26] CREATE ADAPTIVE ANNOUNCEMENTS TO LIMIT NETWORK CONGESTION AND STILLBE ABLE TO FIND PEERS FAST OVER LAN
+
                         while (!Self.TCPServer.ServerToken.IsCancellationRequested)
                         {
                             //OnDebugMessage?.Invoke($"Advertising to the multicast as {ServerAddress}");
                             Self.Multicast.SendUTF8Message(ServerAddress, MulticastAction.Join);
-                            //int DelayPerSecond = 
-                            //await Task.Delay((60 * 1000) * 1);
-                            await Task.Delay(500 * 60);
+
+                            int PeerCount = Self.ConnectedPeers.Count();
+                            // ANNOUNCE OURSELF ON THE MULTICAST WHEN WE HAVE ROOM FOR MORE CONNECTIONS
+                            if (PeerCount < Self.Settings.MaxConnectionPerPeer)
+                            {
+                                if(PeerCount == 0) await Task.Delay(500);
+                                else if (PeerCount <= 2) await Task.Delay(1000);
+                                else if (PeerCount <= 5) await Task.Delay(3000);
+                            }
+                            else await Task.Delay(10 * 1000);
                         }
                     });
 
@@ -362,10 +370,15 @@ public class BaseTCPServer : BaseServerProperties
                 //Console.WriteLine($"C++ data received ->\nSize: {bytesRead} - DATA: {string.Join(" ", tempBuffer.Select(x => x.ToString("X2")))}");
 
                 // Automatically read messages, and decrypt everything here if encrypted
-                byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
+                //byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
+                var received = Client.ReceivedPacket(ref Packer, out PacketHeader Header);
+                if (received is null) continue;
+                Span<byte> Packet = received.GetPayloadSpan();
+
+                OnPacketReceived?.Invoke(Packer, received);
 
                 //Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
-                if (Header.Action != PacketAction.NONE)
+                if (Header.Type != PacketType.NONE)
                 {
                     //Console.WriteLine($"C++ data received ->\nSize: {Packet.Length} - DATA: {string.Join(" ", Packet.Select(x => x.ToString("X2")))}");
                     //Console.WriteLine($"HeaderInfo: {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
@@ -423,10 +436,35 @@ public class BaseTCPServer : BaseServerProperties
         // Stay here until we are authenticated
         while (!Packer.IsAuthenticated)
         {
+            //byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
 
-            byte[] Packet = Client.ReceivePacket(ref Packer, out PacketHeader Header);
 
-            if (Header.Action != PacketAction.NONE)
+
+            using var received = Client.ReceivedPacket(ref Packer, out PacketHeader Header);
+            if (received is null) continue;
+            //else
+            //{
+            //    Console.WriteLine("not null");
+            //    Console.WriteLine($"HeaderType: {received.Header.GetType().Name}");
+
+            //    //string json = received.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true });
+            //    //Console.WriteLine($"ReceivedJSON => {json}");
+            //}
+
+            Span<byte> Packet = received.GetPayloadSpan();
+            //PacketHeader Header = new PacketHeader();
+            //if (received.Header is PacketHeader pHeader)
+            //{
+            //    Header = pHeader;
+            //    Console.WriteLine("header is v1 type");
+
+            //    string json = Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true });
+            //    Console.WriteLine($"ReceivedHeader => {json}");
+            //}
+
+
+            //return;
+            if (Header.Type != PacketType.NONE)
             {
                 switch (Header.Action)
                 {
@@ -484,8 +522,9 @@ public class BaseTCPServer : BaseServerProperties
 
                             if(encrypted.TryDecryptInto(Packer.EncryptionKeys.LocalRSAKeys.PrivateKey, out Auth))
                             {
-                                //Console.WriteLine($"[Server] [ACK] successfully decrypted packet");
+                                Console.WriteLine($"[Server] [ACK] successfully decrypted packet");
                                 Packer.EncryptionKeys.ChaChaKey = Auth.KeyData;
+                                Packer.SendPacket(Auth.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.ACK, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Direct, null);
                                 //Packer.SendUTF8Packet(Auth.ToJSON(), PacketAction.ACK, true, PacketEncryption.ChaCha20Poly1305);
                                 // Control, ACK
                             }
@@ -497,7 +536,10 @@ public class BaseTCPServer : BaseServerProperties
 
                         break;
                     case PacketAction.READY:
+                        // PREVENT SKIPPAGE, CHECK FOR PACKET ID TO MAKE SURE IT GOT HERE WHEN IT SHOULD
+
                         Console.WriteLine($"[Server] [Ready] Connection authenticated with [{ConnectedPeer.PeerId}]");
+                        Packer.SendPacket("<READY>".ToUTF8Byte(), PacketType.Control, PacketAction.READY, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Direct, null);
                         //Packer.SendUTF8Packet("<READY>", PacketAction.Ready, false);
                         // Control, Ready
                         Packer.IsAuthenticated = true;
@@ -519,7 +561,32 @@ public class BaseTCPServer : BaseServerProperties
         byte[] DATA = Array.Empty<byte>();
         string UTF8 = string.Empty;
 
-        //switch (Header.PacketAction)
+        switch (Header.Type)
+        {
+            case PacketType.Control:
+                switch (Header.Action)
+                {
+                    case PacketAction.Ping: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+                    case PacketAction.Pong: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
+                }
+                break;
+            case PacketType.Peer:
+                switch (Header.Action)
+                {
+                    case PacketAction.Join: 
+                        Console.WriteLine("peer joined");
+
+                        // Check if in packet init class
+                        if (UTF8.IsValidJSON(out PeerTable initPeer)) Self.AddPeer(Helper.ClientHandle, initPeer);
+                        else if (UTF8.IsValidJSON(out IEnumerable<PeerTable> initPeers)) Self.AddPeers(Helper.ClientHandle, initPeers);
+                        break;
+                    case PacketAction.Leave: break;
+                }
+                
+                break;
+        }
+
+        //switch (Header.Action)
         //{
         //    case PacketAction.Ping: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
         //    case PacketAction.Pong: heartBeat.HandleHeartBeatActions(Header, Data, Helper); break;
