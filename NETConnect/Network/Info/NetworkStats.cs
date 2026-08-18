@@ -31,10 +31,14 @@ public class NetworkStats
 
 
     // need to figure out a realiable way to record upload/download speed 
+
+    /// <summary>
+    /// Adds successful bytes sent to this record 
+    /// </summary>
     public int Upload { get; set; } = 1;
     public int Download { get; set; } = 1;
 
-    public List<PingTracker> LastFewPings { get; set; }
+    public List<PingTracker> LastFewPings { get; set; } = new List<PingTracker>();
     
 
     public int TotalBytesSent { get; set; }
@@ -82,7 +86,7 @@ public class NetworkStats
             return 100f;
         }
     }
-    public List<UptimeTracker> LastFewConnections { get; set; }
+    public List<UptimeTracker> LastFewConnections { get; set; } = new List<UptimeTracker>();
 
 
     // Simple recording of the peer start time
