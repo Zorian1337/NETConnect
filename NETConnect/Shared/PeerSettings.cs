@@ -24,7 +24,9 @@ namespace NETConnect.Shared
         /// <summary>
         /// Restricts the amount of connections on a given server
         /// </summary>
-        public int MaxConnectionPerPeer { get; set; } = 10;
+        public int MaxConnectionPerPeer { get; set; } = 6;
+        public int MaxFanOut { get; set; } = 3;
+
         /// <summary>
         /// Restricts how many peers can be shared in one connection list
         /// </summary>
@@ -39,7 +41,7 @@ namespace NETConnect.Shared
         /// Signals whether or not this server supports encryption
         /// </summary>
         public bool IsEncryptionEnabled { get; set; } = true;
-        public PacketEncryptionType EncryptionType {  get; set; } = PacketEncryptionType.ChaCha20Poly1305;
+        public PacketEncryption EncryptionType {  get; set; } = PacketEncryption.ChaCha20Poly1305;
 
 
 
