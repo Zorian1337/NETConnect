@@ -1,7 +1,9 @@
-﻿using NETConnect.Shared;
+﻿using NETConnect.Peers;
+using NETConnect.Shared;
 using NETConnect.Shared.Packet;
 using NETConnect.Shared.Packet.Headers;
 using System.Buffers;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Sockets;
 using System.Reflection.PortableExecutable;
@@ -17,6 +19,7 @@ namespace NETConnect.MyExtensions
             if (socket.Poll(0, SelectMode.SelectRead) && socket.Available == 0) return true;
             else return false;
         }
+
         public static bool IsSocketConnected(Socket socket)
         {
             try
@@ -51,27 +54,31 @@ namespace NETConnect.MyExtensions
         
         
 
+
+
         // THIS NEEDS TO USE ArrayPool SO THAT IT CAN SCALE WITH TIME
         // This is example 1 of using ArrayPool while our receives are being moved over to async 
-        public static ReceivedPacket<IPacketHeaderIdentifier>? ReceivedPacket(this Socket Connection, ref PacketHelper Helper)
+        public static ReceivedPacket<IPacketHeaderIdentifier>? ReceivedPacket(this Socket Connection, ref PacketHelper Helper, out PacketHeader Header)
         {
+            Header = default;
+
             int bytesRead = -1;
 
             if (Connection.IsGracefulShutdown()) return null;
             //Console.WriteLine($"receiving -> {Connection.Available}");
 
-            Span<byte> preheader = stackalloc byte[8];
-            if (!(Connection.Available > 8)) return null;
+            Span<byte> preheader = stackalloc byte[IPacketHeaderIdentifier.PreheaderLength];
+            if (!(Connection.Available > IPacketHeaderIdentifier.PreheaderLength)) return null;
             int receivedBytes = Connection.Receive(preheader, SocketFlags.Peek);
-            Console.WriteLine($"peaked at bytes\nReceived:Peaked -> {receivedBytes}");
+            //Console.WriteLine($"peaked at bytes\nReceived:Peaked -> {receivedBytes}");
 
             // THIS SHOULD BE INCLUDED IN ALL FUTURE VERSIONS OF HEADERS UNLESS THERE IS A PREHEADER CHANGE
-            if (!(receivedBytes == 8 && IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength) info)))
+            if (!(receivedBytes == IPacketHeaderIdentifier.PreheaderLength && IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength, long SentAt) info)))
             {
-                Console.WriteLine("if bytes arent 8 and IsValidHeader=false");
+                Debug.WriteLine("if bytes arent 16 and IsValidHeader=false");
                 return null;
             }
-            Console.WriteLine("RECEIVED => 8 BYTES, PREHEADER VALID");
+            //Console.WriteLine("RECEIVED => 8 BYTES, PREHEADER VALID");
 
             // SUPPORT FRAGMENTATION LATER (IDC ABOUT IT RIGHT NOW BUT WE'LL NEED IT FOR FORMATS THAT CANT SEND HUGE AMOUNTS OF DATA)
 
@@ -81,16 +88,20 @@ namespace NETConnect.MyExtensions
             if (!(Connection.Available >= PacketLength)) return null;
             //byte[] Packet = new byte[PacketLength];
             byte[] Packet = ArrayPool<byte>.Shared.Rent(PacketLength);
-            Console.WriteLine("PACKET READY FOR DOWNLOAD");
+            //Console.WriteLine("PACKET READY FOR DOWNLOAD");
 
             try
             {
                 bytesRead = Connection.Receive(Packet, 0, PacketLength, SocketFlags.None);
                 if (bytesRead == 0 || bytesRead != PacketLength) return null;
-                Console.WriteLine($"PACKET DOWNLOADED -> {bytesRead}");
 
-                Console.WriteLine($"Received => {BitConverter.ToString(Packet)} - im here!!!");
-                Span<byte> HeaderSpan = Packet.AsSpan(8).Slice(0, info.HeaderLength - 8);
+                //Helper.Self.TCPServer.MyPeerTable.NetStats.TotalBytesRead += bytesRead;
+                //Helper.Self.TCPServer.MyPeerTable.NetStats.LastUpdated = DateTime.UtcNow;
+
+                Debug.WriteLine($"PACKET DOWNLOADED -> {bytesRead}");
+
+                //Console.WriteLine($"Received => {BitConverter.ToString(Packet)} - im here!!!");
+                Span<byte> HeaderSpan = Packet.AsSpan(IPacketHeaderIdentifier.PreheaderLength).Slice(0, info.HeaderLength - IPacketHeaderIdentifier.PreheaderLength);
                 //Console.WriteLine($"[DEBUG] -> {BitConverter.ToString(HeaderSpan.ToArray())}");
                 //Console.WriteLine("after span");
                 var Temp = new PacketHeader();
@@ -98,10 +109,9 @@ namespace NETConnect.MyExtensions
                 //Console.WriteLine("after build");
                 //Console.WriteLine($"FullPacket => {BitConverter.ToString(_Header)}");
 
-                var Header = PacketHeader.FromBinaryHeader(_Header.AsSpan());
+                Header = PacketHeader.FromBinaryHeader(_Header.AsSpan());
                 //Console.WriteLine("after frombinary");
                 Console.WriteLine($"Header => {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
-                //ReceivedPacket<IPacketHeaderIdentifier> Received;
 
                 // CHECK IF WE NEED TO FORWARD THIS PACKET**
                 // - IGNORE PACKETS WE'VE ALREADY SEEN
@@ -111,12 +121,36 @@ namespace NETConnect.MyExtensions
                 //  IGNORE HERE BEFORE PROCESSING
                 //      DECREMENT TTL
 
+                //  - REJECT PACKET IF SentAt is older than 60 seconds
+
+                long currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                long age = currentTime - Header.SentAt;
+
+                // PREVENT OLD PACKETS AND DESYNCED CLOCK 
+                if (age > 60000 || age < -10000) return null;
+
+                // REJECT PACKETS WE'VE ALREADY SEEN and STORE PACKETS WE'VE JUST SEEN TO LATER REJECT
+                if (PackerTracker.IsPacketSeen(Header.OriginPeerId, Header.PacketId, Header.SentAt)) return null;
+
+
+                PeerTable? Peer;
+                if (Helper.IsServer()) Peer = Helper.Self.TCPServer.MyPeerTable;//.NetStats.TotalBytesRead += bytesRead;
+                else
+                {
+                    var H = Header;
+                    Peer = Helper.Self.ConnectedPeers.Find(x => x.PeerId == H.OriginPeerId);
+                }
+                Peer.NetStats.TotalBytesRead += bytesRead;
+                Peer.NetStats.LastUpdated = DateTime.UtcNow;
+
+                Console.WriteLine(Peer.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true}));
+
                 if (Header.RecipientPeerId == Guid.Empty)
                 {
                     // IF EMPTY AND DIRECT, ITS MEANT FOR US
-                    if(Header.Route == PacketRoute.Direct)
+                    if (Header.Route == PacketRoute.Direct)
                     {
-                        Console.WriteLine("Peer received packet meant for them [no PeerId, and Direct]");
+                        Debug.WriteLine("Peer received packet meant for them [no PeerId, and Direct]");
 
                         ReceivedPacket<IPacketHeaderIdentifier> Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
 
@@ -131,24 +165,62 @@ namespace NETConnect.MyExtensions
                         // DO NOT REBROADCAST EVEN USING TTL
                         Console.WriteLine("Peer received packet meant for everyone [Broadcast]");
 
+                        ReceivedPacket<IPacketHeaderIdentifier> Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
 
+                        // Signals ArrayPool Transfer
+                        Packet = null;
 
-                        return null;
+                        return Received;
                     }
                     else if (Header.Route == PacketRoute.Gossip)
                     {
+                        // IF WE ARE STILL AUTHENTICATING WE ONLY WANT TO PASS THIS INFORMATION AROUND
+                        // DO NOT CONSUME THIS UNTIL AUTHENTICATION IS COMPLETE
+                        if (Helper.IsAuthenticating)
+                        {
+                            Console.WriteLine("this is still authenticating letsskip!");
+                            return null;
+                        }
+
                         // THIS IS ALSO MEANT FOR US 
                         // GOSSIP TO OTHER PEERS BASED ON TTL
                         Console.WriteLine("Peer received packet meant to gossip [Select based on TTL]");
 
+                        // IF THIS GOSSIP HAS A RECIPIENT END THE GOSSIP THERE
+                        // MAYBE ADD AN OPTION TO CONTINUE BUT TARGET FOR RECIPIENT 
+                        // MAYBE EVERYONE WHO RECEIVES IT CAN GET REPORTED BACK TO THE ORIGIN PEER?
 
+                        // Store reference to this ReceivedPacket as is then modify for gossip
+                        ReceivedPacket<IPacketHeaderIdentifier> Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
 
-                        return null;
+                        if (Header.TTL > 0)
+                        {
+                            byte[] GossipPacket = Received.GetFullPacketCopy();
+                            Span<byte> GossipPacketSpan = GossipPacket.AsSpan();
+
+                            // UPDATE PACKET TTL AND LASTHOPID SO WE CAN KEEP TRACK OF PREVIOUS SENDER
+
+                            int offset = Header.HeaderLength - 33;
+                            Helper.Self.PeerId.TryWriteBytes(GossipPacketSpan[offset..]);
+                            //GossipPacketSpan[Header.HeaderLength - 33] = 
+
+                            byte newTTL = (byte)(Header.TTL - 1);
+                            GossipPacketSpan[Header.HeaderLength - 1] = newTTL;
+
+                            Console.WriteLine($"Message to gossip => {BitConverter.ToString(GossipPacket)}");
+                            Helper.Self.GossipForward(GossipPacket, Header, Math.Min(2, Helper.Self.ConnectedPeers.Count()), Helper.Self.PeerId);
+
+                        }
+
+                        // Signals ArrayPool Transfer
+                        Packet = null;
+
+                        return Received;
                     }
                 }
-                else if(Header.RecipientPeerId == Helper.Self.PeerId)
+                else if (Header.RecipientPeerId == Helper.Self.PeerId)
                 {
-                    Console.WriteLine("Peer received packet meant for them [PeerId]");
+                    Debug.WriteLine("Peer received packet meant for them [PeerId]");
                     ReceivedPacket<IPacketHeaderIdentifier> Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
 
                     // Signals ArrayPool Transfer
@@ -158,7 +230,7 @@ namespace NETConnect.MyExtensions
                 }
                 else
                 {
-                    Console.WriteLine("Peer received packet that is included in the unkown scope");
+                    Debug.WriteLine("Peer received packet that is included in the unkown scope");
                     // FORWARD OUR PACKET HERE BASED ON WHATEVER ROUTING RULES WE HAVE 
                     // OR DIRECTLY TO THE RECIPIENT ITS MEANT FOR 
                     // BROADCAST 
@@ -175,7 +247,7 @@ namespace NETConnect.MyExtensions
 
                 return null;
             }
-            catch (Exception Ex) { Console.WriteLine($"[DEBUG]:ReceivedPacket Exception -> {Ex}"); return null; }
+            catch (Exception Ex) { Debug.WriteLine($"[DEBUG]:ReceivedPacket Exception -> {Ex}"); return null; }
             finally
             {
                 if(Packet is not null)
@@ -187,6 +259,7 @@ namespace NETConnect.MyExtensions
 
 
         // THIS NEEDS TO USE ArrayPool SO THAT IT CAN SCALE WITH TIME 
+        [Obsolete]
         public static byte[] ReceivePacket(this Socket Connection, ref PacketHelper Helper, out PacketHeader Header)
         {
             Header = new PacketHeader();
@@ -197,19 +270,19 @@ namespace NETConnect.MyExtensions
 
             // CHECK FOR OUR PREHEADER - IF NOT THERE RETURN EMPTY
             // use span for this small amount of data, then when we read it all use ArrayPool (im not used to using this)
-            Span<byte> preheader = stackalloc byte[8];
+            Span<byte> preheader = stackalloc byte[16];
             //Console.WriteLine($"available -> {Connection.Available}");
-            if (!(Connection.Available > 8)) return Array.Empty<byte>();    // stop using available and IsGracefulShutdown() eventually
+            if (!(Connection.Available > 16)) return Array.Empty<byte>();    // stop using available and IsGracefulShutdown() eventually
             int receivedBytes = Connection.Receive(preheader, SocketFlags.Peek);
-            Console.WriteLine($"peaked at bytes\nReceived:Peaked -> {receivedBytes}");
+            //Console.WriteLine($"peaked at bytes\nReceived:Peaked -> {receivedBytes}");
 
             // THIS SHOULD BE INCLUDED IN ALL FUTURE VERSIONS OF HEADERS UNLESS THERE IS A PREHEADER CHANGE
-            if (!(receivedBytes == 8 && IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength) info)))
+            if (!(receivedBytes == 16 && IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength, long SentAt) info)))
             {
-                Console.WriteLine("if bytes arent 8 and IsValidHeader=false");
+                //Console.WriteLine("if bytes arent 8 and IsValidHeader=false");
                 return Array.Empty<byte>();
             }
-            Console.WriteLine("RECEIVED => 8 BYTES, PREHEADER VALID");
+            //Console.WriteLine("RECEIVED => 8 BYTES, PREHEADER VALID");
 
 
             // SUPPORT FRAGMENTATION LATER (IDC ABOUT IT RIGHT NOW BUT WE'LL NEED IT FOR FORMATS THAT CANT SEND HUGE AMOUNTS OF DATA)
@@ -220,16 +293,16 @@ namespace NETConnect.MyExtensions
             if (!(Connection.Available >= PacketLength)) return Array.Empty<byte>();
             //byte[] Packet = new byte[PacketLength];
             byte[] Packet = ArrayPool<byte>.Shared.Rent(PacketLength);
-            Console.WriteLine("PACKET READY FOR DOWNLOAD");
+            //Console.WriteLine("PACKET READY FOR DOWNLOAD");
 
             try
             {
                 bytesRead = Connection.Receive(Packet, 0, PacketLength, SocketFlags.None);
                 if (bytesRead == 0 || bytesRead != PacketLength) return Array.Empty<byte>();
-                Console.WriteLine($"PACKET DOWNLOADED -> {bytesRead}");
+                //Console.WriteLine($"PACKET DOWNLOADED -> {bytesRead}");
 
-                Console.WriteLine($"Received => {BitConverter.ToString(Packet)} - im here!!!");
-                Span<byte> HeaderSpan = Packet.AsSpan(8).Slice(0, info.HeaderLength-8);
+                //Console.WriteLine($"Received => {BitConverter.ToString(Packet)}");
+                Span<byte> HeaderSpan = Packet.AsSpan(16).Slice(0, info.HeaderLength-16);
                 //Console.WriteLine($"[DEBUG] -> {BitConverter.ToString(HeaderSpan.ToArray())}");
                 //Console.WriteLine("after span");
                 byte[] _Header = Header.BuildFullHeader(info, HeaderSpan);
@@ -238,7 +311,7 @@ namespace NETConnect.MyExtensions
 
                 Header = PacketHeader.FromBinaryHeader(_Header.AsSpan());
                 //Console.WriteLine("after frombinary");
-                Console.WriteLine($"Header => {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
+                //Console.WriteLine($"Header => {Header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true })}");
 
                 return Packet.AsSpan(info.HeaderLength, info.PayloadLength).ToArray();
             }
