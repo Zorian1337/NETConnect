@@ -45,12 +45,19 @@ public class PacketHelper
     /// <param name="Token"></param>
     public PacketHelper(ref Socket Connection, ref Peer Self, ref CancellationTokenSource Token)
     {
+        // THIS IS FOR THE CLIENT
+
         this.Self = Self;
         this.Connection = Connection;
         
-        // Init Keys
-        // Originally just EncryptionKeys = new SecurityKey();
-        this.EncryptionKeys = new SecurityKey(); // This probably causes our keys to get set as the wrong type
+        // PRETTY SURE THIS IS SET APON CONNECTION
+        this.EncryptionKeys = new SecurityKey(); 
+    }
+
+    public bool IsServer()
+    {
+        if (ClientHandle is not null) return true;
+        else return false;
     }
 
     /// <summary>
@@ -61,17 +68,21 @@ public class PacketHelper
     /// <param name="ClientHandle"></param>
     public PacketHelper(ref Socket Connection, ref Peer Self, ref ServerClientHandle ClientHandle, ref CancellationTokenSource Token)
     {
+        // THIS IS FOR THE SERVER 
+
         this.Self = Self;
         this.Connection = Connection;
         //this.Buffers = Buffers;
         this.ClientHandle = ClientHandle;
 
         // Server will be incharge of the type of encryption used, so safe to generate here...
-        RSAKeySize KeySize = RSAKeySize.VerySecure;
+        RSAKeySize KeySize = RSAKeySize.Minium;
         this.EncryptionKeys = new SecurityKey(KeySize, RSACrypt.CreateExport(KeySize));
     }
 
-    //public int SendPacket(byte[] Payload, PacketType Type, PacketAction Action, Packet)
+    public int GossipForward(byte[] Packet) => Connection.Send(Packet);
+
+    // this is for sending data directly and packaging it while sending it automatically, it cannot be used for packet forwarding as it tries to do everything over again
     public int SendPacket(byte[] Payload, PacketType Type, PacketAction Action, PacketEncoding Encoding, PacketEncryption Encryption, PacketRoute Route, Guid? RecipientPeerId = null)
     {
         // IF WE HAVE NO CLIENTS OR PEERS DROP THIS PACKET SENDING AS ERROR 
@@ -80,7 +91,7 @@ public class PacketHelper
         // DO EVERYTHING IN THIS ONE FUNCTION
 
         // - BUILD HEADER - PAYLOAD LENGTH WOULD NEED RECALCULATED AFTER ENCRYPTED
-        PacketHeader header = new PacketHeader(Payload, Type, Action, Encoding, Encryption, Route, Self.PeerId, RecipientPeerId, 7);
+        PacketHeader header = new PacketHeader(Payload, Type, Action, Encoding, Encryption, Route, Self.PeerId, Self.PeerId, RecipientPeerId, 7);
         //Console.WriteLine($"[DEBUG]:SendPacket:Header -> \n{header.ToJSON(new System.Text.Json.JsonSerializerOptions() { WriteIndented = true})}");
 
         // -- ENCRYPT DATA IF NEED BE
@@ -140,7 +151,8 @@ public class PacketHelper
                 // WE'LL JUST IGNORE ANY NEW ROUTING IN THE RECEIVE PEER
                 return Connection.Send(Finalized);
             }
-            //else if ()
+            else if (Route == PacketRoute.Broadcast) return Connection.Send(Finalized);
+            else if (Route == PacketRoute.Gossip) return Connection.Send(Finalized);
         }
 
         // THIS IS LEFT COMPLETELY UNFINISHED, COME BACK HERE AND FINISH IT LATER 
