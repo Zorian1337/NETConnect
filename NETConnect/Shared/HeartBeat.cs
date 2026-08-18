@@ -104,8 +104,8 @@ public class HeartBeat
         if (!IsEnabled) return true;
 
         // Allow sending data that is in the length of 0, and just send the packet header (those are control instructions)
-        int bytesSent = Helper.SendUTF8Packet("<PING>", PacketActionType.Ping);
-        Console.WriteLine($"Sending ping [{bytesSent}]");
+        int bytesSent = Helper.SendPacket("<PING>".ToUTF8Byte(), PacketType.Control, PacketAction.Ping, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Direct, null); //.SendUTF8Packet("<PING>", PacketAction.Ping);
+        //Console.WriteLine($"Sending ping [{bytesSent}]");
 
 
         if (bytesSent > 0) { SetLastBeat(); return true; }
@@ -113,38 +113,52 @@ public class HeartBeat
                                                       //LastPulseAt = DateTime.UtcNow;
     }
 
+    //public bool SendPing(ref PacketHelper Helper, out bool IsDisconnected)
+    //{
+    //    IsDisconnected = false;
+
+    //    if (!IsEnabled) return true;
+
+    //    // Allow sending data that is in the length of 0, and just send the packet header (those are control instructions)
+    //    int bytesSent = Helper.SendUTF8Packet("<PING>", PacketAction.Ping);
+    //    //Console.WriteLine($"Sending ping [{bytesSent}]");
+
+
+    //    if (bytesSent > 0) { SetLastBeat(); return true; }
+    //    else { IsDisconnected = true; return false; } // Failed to send ping, probably due to socket exception 
+    //                                                  //LastPulseAt = DateTime.UtcNow;
+    //}
+
 
     public void UpdateLatency(TimeSpan latency)
     {
         LastLatency = latency;
 
         // Adaptive interval example
-        if (latency.TotalMilliseconds > 200)
-            PulseAtInSeconds = 1; // ping faster
-        else if (latency.TotalMilliseconds < 50)
-            PulseAtInSeconds = 10; // ping slower
-        else
-            PulseAtInSeconds = 5; // default
+        if (latency.TotalMilliseconds > 200) PulseAtInSeconds = 1; // ping faster
+        else if (latency.TotalMilliseconds < 50) PulseAtInSeconds = 10; // ping slower
+        else PulseAtInSeconds = 5; // default
     }
 
 
     public void HandleHeartBeatActions(PacketHeader Header, ReadOnlyMemory<byte> Data, PacketHelper Helper)
     {
-        if(Header.PacketAction == PacketActionType.Ping)
+        if (Header.Action == PacketAction.Ping)
         {
             PingTracker Pinger = new PingTracker()
             {
                 PingSentAt = DateTimeOffset.FromUnixTimeMilliseconds(Header.SentAt).DateTime,
                 PingReceivedAt = DateTime.UtcNow
-                
-            };
-            Helper.SendUTF8Packet($"{Pinger.ToJSON()}", PacketActionType.Pong);
 
+            };
+
+            Helper.SendPacket(Pinger.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.Pong, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Direct, null);
+            //Helper.SendUTF8Packet($"{Pinger.ToJSON()}", PacketAction.Pong);
         }
-        else if (Header.PacketAction == PacketActionType.Pong)
+        else if (Header.Action == PacketAction.Pong)
         {
-            // Check for PingTracker 
-            if(Data.ToArray().ToUTF8String().IsValidJSON(out PingTracker Ping))
+            // Check for PingTracker - will not break thankfully as it'll just do nothing if its not there
+            if (Data.ToArray().ToUTF8String().IsValidJSON(out PingTracker Ping))
             {
                 Ping.PongReceivedAt = DateTime.UtcNow;
 
@@ -152,7 +166,37 @@ public class HeartBeat
                 UpdateLatency(Ping.Latency);
 
                 PingLog.Add(Ping);
-                //Console.WriteLine($"{Ping.Latency.Milliseconds}ms");
+
+                try
+                {
+                    //STORE THIS INFORMATION INTO NETSTATS
+                    Console.WriteLine($"{Helper.Self.PeerId} -> {Header.OriginPeerId}:{Ping.Latency.Milliseconds}ms");
+
+                    PeerTable? currentPeer;
+                    if (Helper.IsServer()) currentPeer = Self.TCPServer.MyPeerTable;
+                    else currentPeer = Self.ConnectedPeers.Find(x => x.PeerId == Header.OriginPeerId);
+
+                    Console.WriteLine("test1");
+                    //var currentPeer = Self.ConnectedPeers.Find(x => x.PeerId == Header.OriginPeerId);
+                    if (currentPeer is null) return;
+                    Console.WriteLine("test2");
+                    if (PingLog is not null && PingLog.Count() == 10) PingLog.RemoveRange(0, 1);
+
+                    if(currentPeer.NetStats is null) Console.WriteLine("net stat is null");
+
+
+                    currentPeer.NetStats.LastFewPings = PingLog;
+                    Console.WriteLine("test3");
+                    //currentPeer.NetStats.
+                    currentPeer.NetStats.LastUpdated = DateTime.UtcNow;
+                    Console.WriteLine("test4");
+                    currentPeer = Self.ConnectedPeers.Find(x => x.PeerId == Header.OriginPeerId);
+                    Console.WriteLine("test5");
+                    Console.WriteLine(currentPeer.ToJSON(new JsonSerializerOptions() { WriteIndented = true }));
+                }
+                catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }   
+
+
             }
         }
     }
