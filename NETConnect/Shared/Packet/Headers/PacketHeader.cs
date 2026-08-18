@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -34,14 +35,12 @@ namespace NETConnect.Shared.Packet.Headers
         // CONNECTION 
         SYN = 1, SYNACK = 2, ACK = 3, READY = 4, 
         // DATA
-        Broadcast = 5, // DEBATE ON MAKING BROADCAST ONE HOP OR MULTIPLE BASED ON TTL?
-        Gossip = 6,
 
         // PEER
-        Join = 7, Leave = 8,
+        Join = 5, Leave = 6,
 
         // PING
-        Ping = 9, Pong = 10
+        Ping = 7, Pong = 8
     }
 
     // IMPLEMENT THIS SOON
@@ -80,6 +79,8 @@ namespace NETConnect.Shared.Packet.Headers
 
     }
 
+    
+
     // This is build to be the routing layer, not the handling layer
     // Inside this after we get to our destination and decrypt the packet inside should contain the information on what to do with it
     // we probably dont need to define a new packet inside but we at least need to route this where it needs to go
@@ -98,11 +99,13 @@ namespace NETConnect.Shared.Packet.Headers
         1 +  // Encryption
         1 +  // Route
         16 + // OriginPeerId
+        16 + // LastHopId
         16 + // RecipientPeerId
         1;   // TTL
 
         public const ushort MAGIC = 0x4E43;
-        private static readonly Dictionary<Guid, ulong> _packetCounters = new();
+        
+        
 
         public PacketHeader() { }
 
@@ -110,6 +113,10 @@ namespace NETConnect.Shared.Packet.Headers
         public byte Version { get; set; } = 2;                  // 1 byte 
         public byte HeaderLength { get; set; } = HeaderSize;    // 1 bytes
         public int PayloadLength { get; set; }                  // 4 bytes
+
+        /// <summary>
+        /// Epoch time in ms
+        /// </summary>
         public long SentAt { get; set; }                        // 8 bytes
 
         public ulong PacketId { get; set; }                     // 8 bytes
@@ -124,11 +131,13 @@ namespace NETConnect.Shared.Packet.Headers
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public PacketRoute Route { get; set; }                  // 1 bytes
         public Guid OriginPeerId { get; set; }                  // 16 bytes
+        public Guid LastHopId { get; set; } = Guid.Empty;       // 16 bytes
         public Guid RecipientPeerId { get; set; } = Guid.Empty; // 16 bytes
+
         public byte TTL { get; set; } = 1;                      // 1 bytes
         // ADD SIGNATURE FIELD FOR DATA INTEGRITY
 
-        public PacketHeader(byte[] Payload, PacketType Type, PacketAction Action, PacketEncoding Encoding, PacketEncryption Encryption, PacketRoute Route, Guid OriginPeerId, Guid? RecipientPeerId, byte TTL)
+        public PacketHeader(byte[] Payload, PacketType Type, PacketAction Action, PacketEncoding Encoding, PacketEncryption Encryption, PacketRoute Route, Guid OriginPeerId, Guid LastHopId, Guid? RecipientPeerId, byte TTL)
         {
             this.PayloadLength = Payload.Length;
             this.Type = Type;
@@ -137,8 +146,9 @@ namespace NETConnect.Shared.Packet.Headers
             this.Encryption = Encryption;
             this.Route = Route;
             this.OriginPeerId = OriginPeerId;
+            this.LastHopId = LastHopId;
             this.SentAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            this.PacketId = NextPacketId(OriginPeerId);
+            this.PacketId = PackerTracker.NextPacketId(OriginPeerId);
             if(RecipientPeerId != null) this.RecipientPeerId = RecipientPeerId.Value;
             else this.RecipientPeerId = Guid.Empty;
 
@@ -159,7 +169,7 @@ namespace NETConnect.Shared.Packet.Headers
             BinaryPrimitives.WriteInt32LittleEndian(data[offset..], PayloadLength);
             offset += 4;
 
-            BinaryPrimitives.WriteInt64BigEndian(data[offset..], SentAt);
+            BinaryPrimitives.WriteInt64LittleEndian(data[offset..], SentAt);
             offset += 8; 
 
             BinaryPrimitives.WriteUInt64LittleEndian(data[offset..], PacketId);
@@ -172,6 +182,9 @@ namespace NETConnect.Shared.Packet.Headers
             data[offset++] = (byte)Route;
 
             OriginPeerId.TryWriteBytes(data[offset..]);
+            offset += 16;
+
+            LastHopId.TryWriteBytes(data[offset..]);
             offset += 16;
 
             RecipientPeerId.TryWriteBytes(data[offset..]);
@@ -221,6 +234,9 @@ namespace NETConnect.Shared.Packet.Headers
             Guid originPeerId = new Guid(buffer.Slice(offset, 16));
             offset += 16;
 
+            Guid lastHopId = new Guid(buffer.Slice(offset, 16));
+            offset += 16;
+
             Guid recipientPeerId = new Guid(buffer.Slice(offset, 16));
             offset += 16;
 
@@ -238,6 +254,7 @@ namespace NETConnect.Shared.Packet.Headers
                 Encryption = Encryption,
                 Route = Route,
                 OriginPeerId = originPeerId,
+                LastHopId = lastHopId,
                 RecipientPeerId = recipientPeerId,
                 TTL = TTL
             };
@@ -282,6 +299,9 @@ namespace NETConnect.Shared.Packet.Headers
             Guid originPeerId = new Guid(buffer.Slice(offset, 16));
             offset += 16;
 
+            Guid lastHopId = new Guid(buffer.Slice(offset, 16));
+            offset += 16;
+
             Guid recipientPeerId = new Guid(buffer.Slice(offset, 16));
             offset += 16;
 
@@ -301,24 +321,14 @@ namespace NETConnect.Shared.Packet.Headers
                 Encryption = Encryption,
                 Route = Route,
                 OriginPeerId = originPeerId,
+                LastHopId = lastHopId,
                 RecipientPeerId = recipientPeerId,
                 TTL = TTL
             };
 
         }
 
-        public static ulong NextPacketId(Guid peerId)
-        {
-            if (_packetCounters.TryGetValue(peerId, out ulong current))
-            {
-                current++;
-                _packetCounters[peerId] = current;
-                return current;
-            }
 
-            _packetCounters[peerId] = 1;
-            return 1;
-        }
 
         
         public byte[] BuildFullHeader((ushort Magic, byte Version, byte HeaderLength, int PayloadLength, long SentAt) info, Span<byte> header)
