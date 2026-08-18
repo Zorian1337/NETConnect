@@ -35,8 +35,8 @@ public class NetworkStats
     /// <summary>
     /// Adds successful bytes sent to this record 
     /// </summary>
-    public int Upload { get; set; } = 1;
-    public int Download { get; set; } = 1;
+    public int Upload { get; set; } = 0;
+    public int Download { get; set; } = 0;
 
     public List<PingTracker> LastFewPings { get; set; } = new List<PingTracker>();
     
