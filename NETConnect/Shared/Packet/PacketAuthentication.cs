@@ -15,7 +15,7 @@ public class PacketAuthentication
 
     // KeySize
 
-    public PacketEncryptionType EncryptionType {  get; set; }
+    public PacketEncryption EncryptionType {  get; set; }
     public byte[] KeyData { get; set; }
 
     public byte[][] ExtraData { get; set; }
