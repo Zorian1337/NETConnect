@@ -13,7 +13,7 @@ namespace NETConnect.MyExtensions;
 
 public static class EncodingExtensions
 {
-
+    public static JsonSerializerOptions Indented = new() { WriteIndented = true };
     public static string ToHashString(this object Obj) => SHA.HashToString(Obj.ToJSON().ToUTF8Byte());
 
     public static T FromUTF8IntoJSON<T>(this byte[] data)
@@ -28,6 +28,8 @@ public static class EncodingExtensions
     {
         if (Obj == null) return string.Empty;
 
+        if (Options is null) { Options = Options ?? Indented; }
+
         try { return JsonSerializer.Serialize(Obj, Options); }
         catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }
 
@@ -36,7 +38,6 @@ public static class EncodingExtensions
 
 
     public static bool IsValidJSON<T>(this byte[] UTF8, out T data, JsonSerializerOptions? Options = null) => UTF8.ToUTF8String().IsValidJSON<T>(out data, Options);
-
     public static bool IsValidJSON<T>(this Span<byte> UTF8, out T data, JsonSerializerOptions? Options = null) => UTF8.ToUTF8String().IsValidJSON<T>(out data, Options);
     public static bool IsValidJSON<T>(this string JSON, out T data, JsonSerializerOptions? Options = null)
     {
