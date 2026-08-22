@@ -49,7 +49,8 @@ public class PacketHelper
 
         this.Self = Self;
         this.Connection = Connection;
-        
+        this.Token = Token; // WAS MISSING
+
         // PRETTY SURE THIS IS SET APON CONNECTION
         this.EncryptionKeys = new SecurityKey(); 
     }
@@ -74,13 +75,19 @@ public class PacketHelper
         this.Connection = Connection;
         //this.Buffers = Buffers;
         this.ClientHandle = ClientHandle;
+        this.Token = Token; // WAS MISSING
 
         // Server will be incharge of the type of encryption used, so safe to generate here...
         RSAKeySize KeySize = RSAKeySize.Minium;
         this.EncryptionKeys = new SecurityKey(KeySize, RSACrypt.CreateExport(KeySize));
     }
 
-    public int GossipForward(byte[] Packet) => Connection.Send(Packet);
+    /// <summary>
+    /// Relays the packet the same way it was received but slightly modified
+    /// </summary>
+    /// <param name="Packet"></param>
+    /// <returns></returns>
+    public int Forward(byte[] Packet) => Connection.Send(Packet);
 
     // this is for sending data directly and packaging it while sending it automatically, it cannot be used for packet forwarding as it tries to do everything over again
     public int SendPacket(byte[] Payload, PacketType Type, PacketAction Action, PacketEncoding Encoding, PacketEncryption Encryption, PacketRoute Route, Guid? RecipientPeerId = null)
@@ -104,10 +111,19 @@ public class PacketHelper
             {
                 case PacketEncryption.AES: break;
                 case PacketEncryption.RSA: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.RemoteRSAPubKey, PacketEncryption.RSA); break;
-                case PacketEncryption.ChaCha20Poly1305: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.ChaChaKey, PacketEncryption.ChaCha20Poly1305); break;
+                case PacketEncryption.ChaCha20Poly1305: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.ChaChaKey, PacketEncryption.ChaCha20Poly1305);  break; //Self.TCPServer.InvokeDebugMessage($"EncryptedData: {Encrypted?.Length} - ChaChaKey: {EncryptionKeys.ChaChaKey.Length}");
             }
 
-            if (Encrypted is null || Encrypted.Length == 0) return -1;
+            if (Encrypted is null || Encrypted.Length == 0)
+            {
+                // IF PACKET IS NOT ENCRYPTED THEN IT RUINS OUR PACKET
+                //Self.TCPServer.InvokeDebugMessage("encryption is null");
+
+                Self.TCPServer.InvokeDebugMessage($"Payload: {BitConverter.ToString(Payload)}");
+                byte[] test = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.ChaChaKey, PacketEncryption.ChaCha20Poly1305);
+                Self.TCPServer.InvokeDebugMessage($"TestEncryption: {test.Length} : {IsServer()}");
+                return -1;
+            }
             else header.PayloadLength = Encrypted.Length;
         } // DO THIS LATER SO WE CAN MAKE SURE EVERYTHING AT LEAST WORKS 
 
@@ -118,6 +134,7 @@ public class PacketHelper
 
         if ((Encrypted is null || Encrypted.Length == 0))
         {
+            //Self.TCPServer.InvokeDebugMessage("using normal payload");
             Finalized = new byte[header.HeaderLength + header.PayloadLength];
             HeaderArray = header.ToBinaryHeader();
             HeaderArray.CopyTo(Finalized, 0);
@@ -127,6 +144,7 @@ public class PacketHelper
         }
         else
         {
+            //Self.TCPServer.InvokeDebugMessage("using encrypted payload");
             header.PayloadLength = Encrypted.Length;
             Finalized = new byte[header.HeaderLength + header.PayloadLength];
             HeaderArray = header.ToBinaryHeader();
@@ -156,7 +174,7 @@ public class PacketHelper
         }
 
         // THIS IS LEFT COMPLETELY UNFINISHED, COME BACK HERE AND FINISH IT LATER 
-
+        Self.TCPServer.InvokeDebugMessage("got to the end so -1 by default");
         return -1;
     }
 
