@@ -10,6 +10,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection.Metadata.Ecma335;
+using System.Reflection.PortableExecutable;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.Swift;
 using System.Security.Cryptography;
@@ -73,8 +74,9 @@ public class Peer
         TCPServer = new BaseTCPServer(ref Self, Address, Port);
 
         // Start our server, as having multicast up and our TCPServer is the most important (client is used to connect to other Peer Servers) - might need to change some plans around later 
-        TCPServer.StartServer();
-
+        //TCPServer.StartServer();
+        Task.Run(() => _ = TCPServer.StartServerAsync());
+        //_ = TCPServer.StartServerAsync();
     }
 
 
@@ -89,7 +91,7 @@ public class Peer
         // Use this to update peers settings on init
     };
 
-    // Need to setup a system where I can find the - I didnt finish making this comment months ago LOL (probably the GUID of a peer?)
+    // Need to setup a system where I can find the - I didnt finish making this comment months ago LOL (probmmnably the GUID of a peer?)
     //public void SendToPeer(Guid PeerId, byte[] DataToShare, PacketAction ActionType) 
     //{
     //    PacketHeader premadeHeader = PacketHeader.GetTraversalHeader(PeerId, TCPServer.Address.ToString(), (ushort)TCPServer.Port, Guid.Empty);
@@ -111,6 +113,7 @@ public class Peer
         });
     }
 
+    // MERGE GOSSIP FORWARD AND BROADCAST FORWARD INTO ONE LATER
     public void GossipForward(byte[] Packet, PacketHeader Header, int Fanout, Guid LastPeer)
     {
         var GossipTarget = ConnectedPeers.Where(p => p.PeerId != Header.OriginPeerId && p.PeerId != LastPeer).Take(Fanout);
@@ -118,10 +121,22 @@ public class Peer
         Parallel.ForEach(GossipTarget, x =>
         {
             //x.Client.Packer.SendPacket(Packet, Header.Type, Header.Action, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Gossip, null);
-            x.Client.Packer.GossipForward(Packet);
+            x.Client.Packer.Forward(Packet);
         });
     }
 
+    public void BroadcastForward(byte[] Packet, PacketHeader Header, Guid LastPeer)
+    {
+        var BroadcastTarget = ConnectedPeers.Where(p => p.PeerId != Header.OriginPeerId && p.PeerId != LastPeer);
+
+        TCPServer.InvokeDebugMessage($"📢 BroadcastForward: TTL={Header.TTL}, ConnectedPeers={ConnectedPeers.Count}");
+
+        Parallel.ForEach(BroadcastTarget, x =>
+        {
+            //x.Client.Packer.SendPacket(Packet, Header.Type, Header.Action, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Gossip, null);
+            x.Client.Packer.Forward(Packet);
+        });
+    }
 
     public void Broadcast(string Payload, PacketType Type, PacketAction Action) => Broadcast(Payload.ToUTF8Byte(), Type, Action);
     public void Broadcast(byte[] Payload, PacketType Type, PacketAction Action)
@@ -148,9 +163,11 @@ public class Peer
 
         Parallel.ForEach(ConnectedPeers, x =>
         {
-            x.Client.Packer.SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Broadcast, null);
+            //TCPServer.InvokeDebugMessage($"broadcast to => {ConnectedPeers.ToJSON()}");
+            int Sent = x.Client.Packer.SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Broadcast, null);
             //int bytesSent = x.PacketHelper.SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Broadcast, null);
             //x.GetPacketHelper().SendPacket("testing".ToUTF8Byte(), PacketType.Data, PacketAction.NONE, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Broadcast, null);
+            TCPServer.InvokeDebugMessage($"broadcasted {Sent} to {x.PeerId}");
         }); 
 
     }
@@ -264,7 +281,7 @@ public class Peer
                     Console.WriteLine($"[foreach] AddPeer: {peer.ToJSON()}");
                     BaseTCPClient connection = new BaseTCPClient(ref SelfPeer);
                     peer.Client = connection;
-                    if (connection.TryConnect(peer.Address, peer.Port))
+                    if (connection.TryConnectAsyncV2(peer.Address, peer.Port).GetAwaiter().GetResult())
                     {
                         // Add them to unique list
                         UniquePeers.Add(peer);
@@ -297,7 +314,7 @@ public class Peer
                         BaseTCPClient connection = new BaseTCPClient(ref SelfPeer);
                         peer.Client = connection;
 
-                        if (connection.TryConnect(peer.Address, peer.Port))
+                        if (connection.TryConnectAsyncV2(peer.Address, peer.Port).GetAwaiter().GetResult())
                         {
                             // Add them to unique list
                             UniquePeers.Add(peer);
