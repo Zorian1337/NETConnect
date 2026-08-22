@@ -42,7 +42,6 @@ namespace NETConnect.Shared
             // Dispose if we have duplicates of this socket
             if (!ExistingPools.TryAdd(_socket.Handle, this)) 
             { 
-
                 Dispose();
             }
         }
@@ -87,8 +86,8 @@ namespace NETConnect.Shared
                 // MAKE A LOOP THAT GOES THROUGH OUR DATA
                 while (stream.Position < stream.Length)
                 {
-                    byte[] preheader = reader.ReadBytes(8);
-                    if (!IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength) info))
+                    byte[] preheader = reader.ReadBytes(IPacketHeaderIdentifier.PreheaderLength);
+                    if (!IPacketHeaderIdentifier.IsValidHeader(preheader, out (ushort Magic, byte Version, byte HeaderLength, int PayloadLength, long SentAt) info))
                     {
                         stream.Position -= 7; // resets but stays one ahead
                         Debug.WriteLine("[DEBUG] Failed to validate header");
@@ -96,7 +95,7 @@ namespace NETConnect.Shared
                     }
 
                     // CHECK IF ARRAY CONTAINS ALLOF THIS HEADER AND ITS PAYLOAD
-                    int RestOFPacketSize = (info.HeaderLength-8) + info.PayloadLength;
+                    int RestOFPacketSize = (info.HeaderLength- IPacketHeaderIdentifier.PreheaderLength) + info.PayloadLength;
 
                     if (!(stream.Position + RestOFPacketSize <= stream.Length))
                     {
@@ -111,11 +110,11 @@ namespace NETConnect.Shared
 
                     // GRABS OUR DATA AND CREATES IT INTO A PACKET FOR US TO HANDLE
 
-                    byte[] RestOFHeader = reader.ReadBytes(info.HeaderLength - 8);
+                    byte[] RestOFHeader = reader.ReadBytes(info.HeaderLength - IPacketHeaderIdentifier.PreheaderLength);
                     byte[] FullHeader = new byte[info.HeaderLength]; // Contains preheader and data after it
 
                     Array.Copy(preheader, 0, FullHeader, 0, preheader.Length);
-                    Array.Copy(RestOFHeader, 0, FullHeader, 8, RestOFHeader.Length);
+                    Array.Copy(RestOFHeader, 0, FullHeader, IPacketHeaderIdentifier.PreheaderLength, RestOFHeader.Length);
 
                     byte[] Payload = reader.ReadBytes(info.PayloadLength);
 
