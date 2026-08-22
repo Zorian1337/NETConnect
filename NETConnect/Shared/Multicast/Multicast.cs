@@ -1,7 +1,9 @@
 ﻿using NETConnect.Network;
 using NETConnect.Peers;
+using NETConnect.Shared.Packet;
 using NETConnect.Shared.Packet.Headers;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -24,7 +26,7 @@ public class Multicast
 
 
     public event Action<MulticastPacket> OnMulticastMessage;
-
+    public event Func<MulticastPacket, Task> OnMulticastMessageAsync;
     public Multicast(ref Peer Self, string MulticastAddress = "235.69.4.20", int Port = 50420)
     {
         this.Self = Self;
@@ -59,7 +61,63 @@ public class Multicast
         if(IsWire)
         {
             OnMulticastMessage += HandleOnMulticastMessage;
+            OnMulticastMessageAsync += HandleOnMulticastMessageAsync;
         }
+    }
+
+    public async Task ReadMulticastAsync()
+    {
+        //Console.WriteLine("started");
+        Wire();
+
+        // IMPLEMENT ONLY ONE READER PER PEER 
+        // RETURN IF ALREADY ACTIVE
+
+        // CREATE SHARED ArrayPool to lower memory allocation
+        // THIS IS STILL THE WRONG IMPLEMENTATION OF ArrayPool
+        // WE SHOULDNT BE DISPOSING AFTER EVERY USE (PRETTY SURE?)
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(65536);
+        var memoryBuffer = buffer.AsMemory();
+
+        try
+        {
+            while (!Token.IsCancellationRequested)
+            {
+                //Console.WriteLine("token not canceled");
+
+                var remoteEP = EndPoint;
+                SocketReceiveFromResult result = await Client.Client.ReceiveFromAsync(memoryBuffer, remoteEP, Token.Token);
+
+                //UdpReceiveResult result = await Client.Client.re
+                //Console.WriteLine("data received");
+                var sender = result.RemoteEndPoint;
+
+
+                int readBytes = result.ReceivedBytes;
+                //Console.WriteLine(readBytes);
+                if (readBytes == 0) continue;
+
+                byte[] packetData = new byte[readBytes];
+                Array.Copy(buffer, packetData, readBytes);
+
+                string receivedMsg = Encoding.UTF8.GetString(packetData);
+                //Console.WriteLine(receivedMsg); // Disabled to clear my screen
+                if (receivedMsg.IsValidJSON(out MulticastPacket Packet) && Packet.SenderId != SenderId)
+                {
+                    // Hiding this as it'll just spam that it received something, although it is useful its not for a bit
+                    //Console.WriteLine($"[Multicast] recevied -> [{Packet.SenderId}] - {Packet.Data.ToUTF8String()}");
+                    OnMulticastMessage?.Invoke(Packet);
+                    //_ = OnMulticastMessageAsync?.Invoke(Packet);
+
+                }
+
+                // access this bool while inside the loop to disable our events (it should work but untested)
+                if (Token.IsCancellationRequested) Wire(false);
+            }
+        }
+        catch(Exception Ex) { Console.WriteLine(Ex.ToString()); }
+        finally { ArrayPool<byte>.Shared.Return(buffer); }
+
     }
 
     public void ReadMulticast()
@@ -93,6 +151,7 @@ public class Multicast
                 //Console.WriteLine(receivedMsg); // Disabled to clear my screen
                 if (receivedMsg.IsValidJSON(out MulticastPacket Packet) && Packet.SenderId != SenderId)
                 {
+                    // Hiding this as it'll just spam that it received something, although it is useful its not for a bit
                     Console.WriteLine($"[Multicast] recevied -> [{Packet.SenderId}] - {Packet.Data.ToUTF8String()}");
                     OnMulticastMessage?.Invoke(Packet);
                 }
@@ -101,6 +160,44 @@ public class Multicast
                 if (Token.IsCancellationRequested) Wire(false);
             }
         });
+    }
+
+    private async Task HandleOnMulticastMessageAsync(MulticastPacket Packet)
+    {
+        // WE DONT WANT ANY MESSAGES FROM OURSELF
+        if (Packet.SenderId == Self.PeerId) return;
+
+        string UTF8 = String.Empty;
+        switch (Packet.Action)
+        {
+            case MulticastAction.Join:
+                // ONCE A CLIENT JOINS THE MULTICAST ADD THEM TO THE DISCOVERED LIST
+                // USE THE MULTICAST TO FIND PEERS TO JOIN OUR MESH
+
+                UTF8 = Packet.Data.ToUTF8String();
+                string[] Addr = UTF8.Split(":");
+                string Address = Addr[0];
+                int Port = int.Parse(Addr[1]);
+
+                // ADD PEERS TO OUR DISCOVERY LIST IF THEY HAVENT BEEN DISCOVERED
+                if (!Self.TCPServer.MyPeerTable.DiscoveredPeers.Any(x => x.PeerId == Packet.SenderId))
+                {
+                    PeerTable peer = new PeerTable(Packet.SenderId, Address, Port);
+                    Self.TCPServer.MyPeerTable.DiscoveredPeers.Add(peer);
+
+                    Console.WriteLine($"Added [{peer.PeerId}] to the Discovery\nPeer => {peer.ToJSON()}");
+
+                    Console.WriteLine();
+                    Console.WriteLine();
+                    Console.WriteLine(Self.TCPServer.MyPeerTable.DiscoveredPeers.ToJSON());
+                }
+                // UPDATE PEER LIST IF THEY HAVE HAD AN UDPATE TO THEIR STATS?
+                else
+                {
+
+                } 
+                break;
+        }
     }
 
     private void HandleOnMulticastMessage(MulticastPacket Packet)
@@ -119,9 +216,6 @@ public class Multicast
 
                 // Remove any peers that exist multiple times somehow
                 Self.ConnectedPeers = Self.ConnectedPeers.Distinct().ToList();
-
-
-
 
                 // Add only peers that havent been discovered yet
                 // Include peers that have already been connected to the server just not added to the connected peer list yet (find a way to add them during our client flow)
@@ -143,9 +237,18 @@ public class Multicast
                 // After connecting to the newest peer who joined, share your list of peers for them to join (later only 1 will need to do this)
 
 
+                // PREVENT CONNECTION IF GUID IS LOWER AND IF MAX NUMBER OF PEERS
+                if (Self.ConnectedPeers.Count == Self.Settings.MaxConnectionPerPeer) return;
+                //if (!(Packet.SenderId.CompareTo(Self.PeerId) > 0)) return;
+
                 int Port = int.Parse(Addr[1]);
-                if (Client.TryConnect(Addr[0], Port))
+
+
+                // ONLY TEMP TESTING
+                //return; // PREVENT PEER FROM CONNECTING THIS WAY
+                if (Client.TryConnectAsyncV2(Addr[0], Port).GetAwaiter().GetResult()) // PROBABLY WAIT UNTIL THIS IS AUTHENTICATED BEFORE GOING FORWARD AS IT CANT SEND THE MESSAGES IT NEEDS TO?
                 {
+                    //return;
                     //Console.WriteLine($"[Multicast] ClientJoinId: {Packet.SenderId}");
                     PeerTable newPeer = new PeerTable(Packet.SenderId, Addr[0], Port)
                     {
@@ -157,20 +260,29 @@ public class Multicast
                     //{
                     //    PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port);
                     //    // Send new peer old peer list (we wont have any peers right now)
-                    //    Client.Packer.SendPacket(myPeer.ToJSON().ToUTF8Byte(), Shared.Packet.PacketActionType.P2PInt);
+                    //    Client.Packer.SendPacket(myPeer.ToJSON().ToUTF8Byte(), Shared.Packet.PacketAction.P2PInt);
                     //}
                     //else 
                     //{
                     //    PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port);
                     //    // Send new peer old peer list (we wont have any peers right now)
-                    //    Client.Packer.SendPacket(Self.Peers.ToJSON().ToUTF8Byte(), Shared.Packet.PacketActionType.P2PInt);
+                    //    Client.Packer.SendPacket(Self.Peers.ToJSON().ToUTF8Byte(), Shared.Packet.PacketAction.P2PInt);
                     //}
 
 
                     //PeerTable myPeer = new PeerTable(SenderId, NetworkUtils.GetLocalLanIp().ToString(), Self.TCPServer.Port); // THIS ORIGINALLY WASNT COMMENTED
                     //Self.TCPServer.MyPeerTable = myPeer;
                     // Send new peer old peer list (we wont have any peers right now)
-                    Client.Packer.SendUTF8Packet(Self.ConnectedPeers.ToArray().ToJSON(), PacketActionType.PeerJoin);
+                    Console.WriteLine("[MULTICAST] Sent SERVER join request from peer joining");
+
+                    string JSON = Self.ConnectedPeers.ToArray().ToJSON();
+                    Console.WriteLine($"Peers: {JSON}");
+                    //Client.Packer.SendUTF8Packet(JSON, PacketAction.PeerJoin); //- THIS WAS ENABLED BUT I ENABLED IT TO DO SOME DEBUG, I CANT TELL IF ITS ACTUALLY ACTIVATING [probably an issue with the authentication]
+                    
+                    
+                    Client.Packer.SendPacket(JSON.ToUTF8Byte(), PacketType.Peer, PacketAction.Join, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Direct, null);
+
+
 
                     // We simply just need to do Self.ConnectedPeers.Add in the PeerJoin area (I hope)
                     // Server controls the multicast so this is how it ends up populated for servers (at least it should be)
