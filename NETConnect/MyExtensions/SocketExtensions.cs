@@ -20,7 +20,8 @@ namespace NETConnect.MyExtensions
             else return false;
         }
 
-        public static bool IsSocketConnected(Socket socket)
+
+        public static bool IsSocketConnected(this Socket socket)
         {
             try
             {
