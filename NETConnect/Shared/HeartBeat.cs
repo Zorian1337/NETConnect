@@ -58,7 +58,7 @@ public class HeartBeat
 
     }
 
-    [Obsolete]
+    [Obsolete] // NO CLUE WHY I ORIGINALLY MARKED THIS AS OBSOLETE WILL PROBALY CHANGE IT
     public bool TrySendHeartBeat(ref PacketHelper Helper, out bool IsDisconnected)
     {
         IsDisconnected = false;
@@ -176,23 +176,23 @@ public class HeartBeat
                     if (Helper.IsServer()) currentPeer = Self.TCPServer.MyPeerTable;
                     else currentPeer = Self.ConnectedPeers.Find(x => x.PeerId == Header.OriginPeerId);
 
-                    Console.WriteLine("test1");
+                    //Console.WriteLine("test1");
                     //var currentPeer = Self.ConnectedPeers.Find(x => x.PeerId == Header.OriginPeerId);
                     if (currentPeer is null) return;
-                    Console.WriteLine("test2");
+                    //Console.WriteLine("test2");
                     if (PingLog is not null && PingLog.Count() == 10) PingLog.RemoveRange(0, 1);
 
-                    if(currentPeer.NetStats is null) Console.WriteLine("net stat is null");
+                    //if(currentPeer.NetStats is null) Console.WriteLine("net stat is null");
 
 
                     currentPeer.NetStats.LastFewPings = PingLog;
-                    Console.WriteLine("test3");
+                    //Console.WriteLine("test3");
                     //currentPeer.NetStats.
                     currentPeer.NetStats.LastUpdated = DateTime.UtcNow;
-                    Console.WriteLine("test4");
+                    //Console.WriteLine("test4");
                     currentPeer = Self.ConnectedPeers.Find(x => x.PeerId == Header.OriginPeerId);
-                    Console.WriteLine("test5");
-                    Console.WriteLine(currentPeer.ToJSON(new JsonSerializerOptions() { WriteIndented = true }));
+                    //Console.WriteLine("test5");
+                    //Console.WriteLine(currentPeer.ToJSON(new JsonSerializerOptions() { WriteIndented = true }));
                 }
                 catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }   
 
