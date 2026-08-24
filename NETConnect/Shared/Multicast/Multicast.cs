@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices.Swift;
 using System.Text;
 using System.Threading.Tasks;
@@ -70,6 +71,8 @@ public class Multicast
         //Console.WriteLine("started");
         Wire();
 
+        _ = HandleDiscoveredPeers();
+
         // IMPLEMENT ONLY ONE READER PER PEER 
         // RETURN IF ALREADY ACTIVE
 
@@ -106,8 +109,8 @@ public class Multicast
                 {
                     // Hiding this as it'll just spam that it received something, although it is useful its not for a bit
                     //Console.WriteLine($"[Multicast] recevied -> [{Packet.SenderId}] - {Packet.Data.ToUTF8String()}");
-                    OnMulticastMessage?.Invoke(Packet);
-                    //_ = OnMulticastMessageAsync?.Invoke(Packet);
+                    //OnMulticastMessage?.Invoke(Packet);
+                    _ = OnMulticastMessageAsync?.Invoke(Packet);
 
                 }
 
@@ -162,6 +165,61 @@ public class Multicast
         });
     }
 
+    private async Task HandleDiscoveredPeers()
+    {
+        //List<PeerTable> ConnectingPeers = new List<PeerTable>();
+
+        PeriodicTimer timer = new PeriodicTimer(new TimeSpan(0, 0, 0, 0, 100));
+        while (!Token.IsCancellationRequested && await timer.WaitForNextTickAsync())
+        {
+            // LOOK THROUGH PEER LIST EVERY 100MS TO SEE IF WE CAN CONNECT ANYONE
+
+            // CHECK IF CONNECTED PEERS ARE FULL BASED ON OUR SETTINGS
+            if(Self.ConnectedPeers.Count() == Self.Settings.MaxConnectionPerPeer)
+            {
+                Console.WriteLine("peer limit reached");
+
+                // PEER CANNOT CONNECT TO ANY OTHER ONE
+                continue;
+            }
+
+            if(Self.ConnectedPeers.Count() == 0 && Self.TCPServer.MyPeerTable.DiscoveredPeers.Count() > 0)
+            {
+                int rng = Random.Shared.Next(0, Self.TCPServer.MyPeerTable.DiscoveredPeers.Count() - 1);
+                var peer = Self.TCPServer.MyPeerTable.DiscoveredPeers[rng];
+
+                Console.WriteLine("attempting to connect from handle");
+
+                if (await peer.GetClient(Self).TryConnectAsyncV2(peer.Address, peer.Port))
+                {
+                    Console.WriteLine($"[CLIENT] {peer.PeerId} has connected and authenticated!");
+                    Self.ConnectedPeers.Add(peer);
+                }
+
+
+            }
+            else
+            {
+                //// GET PEERS WHO ARENT ALREADY CONNECTED
+                var NONConnectedPeers = Self.TCPServer.MyPeerTable.DiscoveredPeers.Where(x => !Self.ConnectedPeers.Any(a => x.PeerId == a.PeerId));
+
+                var PeersToConnect = NONConnectedPeers.Take(Math.Min(Self.ConnectedPeers.Count(), Self.Settings.MaxConnectionPerPeer));
+
+                await Parallel.ForEachAsync(PeersToConnect, async (peer, token) =>
+                {
+                    Console.WriteLine("attempting to connect from handle");
+                    if (await peer.GetClient(Self).TryConnectAsyncV2(peer.Address, peer.Port))
+                    {
+                        Console.WriteLine($"[CLIENT] {peer.PeerId} has connected and authenticated!");
+                        Self.ConnectedPeers.Add(peer);
+                    }
+                });
+            }
+        }
+
+        Console.WriteLine("loop ended");
+    }
+
     private async Task HandleOnMulticastMessageAsync(MulticastPacket Packet)
     {
         // WE DONT WANT ANY MESSAGES FROM OURSELF
@@ -200,6 +258,7 @@ public class Multicast
         }
     }
 
+    
     private void HandleOnMulticastMessage(MulticastPacket Packet)
     {
         string UTF8 = String.Empty;

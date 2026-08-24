@@ -70,13 +70,13 @@ namespace NETConnect.Shared.Packet.Headers
 
     }
 
+    [Flags]
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum PacketEncryption: byte
     {
         NONE = 0,
-        AES,
-        RSA,
-        ChaCha20Poly1305
-
+        RSA = 1 << 0,
+        ChaCha20Poly1305  = 1 << 1 
     }
 
     

@@ -8,6 +8,7 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace NETConnect.Encryption.Hash
 {
+    //Elliptic Curve Digital Signature Algorithm
     public static class ECDSA_P256
     {
         // ExportPkcs8PrivateKey to be loaded from file later

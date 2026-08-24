@@ -11,6 +11,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace NETConnect.Shared.Packet;
 
@@ -106,10 +107,15 @@ public class PacketHelper
         byte[] Encrypted = [];
         if (Encryption != PacketEncryption.NONE)
         {
+            // THIS WAS ORIGINALLY WORKING NOW CLIENT CHACHAKEYS ARENT VALID ?
+            // THE SCOPE OF THIS IS A BIT CONFUSING, THE SERVER HAS THE KEYS BUT IS IT PULLING FROM THE RIGHT PACKER?
 
+            //Self.TCPServer.InvokeDebugMessage($"ChaChaKey: {EncryptionKeys.ChaChaKey.Length}");
+            //if (EncryptionKeys.ChaChaKey is null) Self.TCPServer.InvokeDebugMessage($"ChaChaKey: reported null - IsServer: {IsServer()}");
+            //else Self.TCPServer.InvokeDebugMessage($"ChaChaKey: reported not null - IsServer: {IsServer()}");
             switch (Encryption)
             {
-                case PacketEncryption.AES: break;
+                //case PacketEncryption.AES: break;
                 case PacketEncryption.RSA: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.RemoteRSAPubKey, PacketEncryption.RSA); break;
                 case PacketEncryption.ChaCha20Poly1305: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.ChaChaKey, PacketEncryption.ChaCha20Poly1305);  break; //Self.TCPServer.InvokeDebugMessage($"EncryptedData: {Encrypted?.Length} - ChaChaKey: {EncryptionKeys.ChaChaKey.Length}");
             }
@@ -119,9 +125,9 @@ public class PacketHelper
                 // IF PACKET IS NOT ENCRYPTED THEN IT RUINS OUR PACKET
                 //Self.TCPServer.InvokeDebugMessage("encryption is null");
 
-                Self.TCPServer.InvokeDebugMessage($"Payload: {BitConverter.ToString(Payload)}");
+                //Self.TCPServer.InvokeDebugMessage($"Payload: {BitConverter.ToString(Payload)}");
                 byte[] test = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.ChaChaKey, PacketEncryption.ChaCha20Poly1305);
-                Self.TCPServer.InvokeDebugMessage($"TestEncryption: {test.Length} : {IsServer()}");
+                //Self.TCPServer.InvokeDebugMessage($"TestEncryption: {test.Length} : {IsServer()}");
                 return -1;
             }
             else header.PayloadLength = Encrypted.Length;

@@ -170,7 +170,7 @@ public class HeartBeat
                 try
                 {
                     //STORE THIS INFORMATION INTO NETSTATS
-                    Console.WriteLine($"{Helper.Self.PeerId} -> {Header.OriginPeerId}:{Ping.Latency.Milliseconds}ms");
+                    //Console.WriteLine($"{Helper.Self.PeerId} -> {Header.OriginPeerId}:{Ping.Latency.Milliseconds}ms");
 
                     PeerTable? currentPeer;
                     if (Helper.IsServer()) currentPeer = Self.TCPServer.MyPeerTable;

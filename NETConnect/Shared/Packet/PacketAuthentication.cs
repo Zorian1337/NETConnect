@@ -9,18 +9,8 @@ namespace NETConnect.Shared.Packet;
 
 public class PacketAuthentication
 {
-    // EncryptionType
-
-    // KeyData
-
-    // KeySize
-
     public PacketEncryption EncryptionType {  get; set; }
     public byte[] KeyData { get; set; }
 
     public byte[][] ExtraData { get; set; }
-
-
-    // Settings from the server, that needs to be client synced
-
 }

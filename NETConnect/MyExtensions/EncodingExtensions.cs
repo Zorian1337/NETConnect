@@ -28,7 +28,8 @@ public static class EncodingExtensions
     {
         if (Obj == null) return string.Empty;
 
-        if (Options is null) { Options = Options ?? Indented; }
+        // remove default indented as it lowered serialization speed and makes it bigger size
+        //if (Options is null) { Options = Options ?? Indented; }
 
         try { return JsonSerializer.Serialize(Obj, Options); }
         catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }
@@ -36,7 +37,7 @@ public static class EncodingExtensions
         return string.Empty;
     }
 
-
+    public static string ToIndentedJSON(this object Obj) => Obj.ToJSON(Indented);
     public static bool IsValidJSON<T>(this byte[] UTF8, out T data, JsonSerializerOptions? Options = null) => UTF8.ToUTF8String().IsValidJSON<T>(out data, Options);
     public static bool IsValidJSON<T>(this Span<byte> UTF8, out T data, JsonSerializerOptions? Options = null) => UTF8.ToUTF8String().IsValidJSON<T>(out data, Options);
     public static bool IsValidJSON<T>(this string JSON, out T data, JsonSerializerOptions? Options = null)

@@ -107,7 +107,14 @@ public class Peer
 
         Parallel.ForEach(ConnectedPeers, x =>
         {
-            x.Client.Packer.SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Gossip, null); // this one works for broadcast
+            //if(x.GetPacketHelper().EncryptionKeys)
+
+            //if (x.GetPacketHelper().EncryptionKeys.ChaChaKey is null) TCPServer.InvokeDebugMessage($"ChaChaKey: reported null - IsServer: {x.GetPacketHelper().IsServer()}");
+            //else TCPServer.InvokeDebugMessage($"ChaChaKey: reported not null - IsServer: {x.GetPacketHelper().IsServer()}");
+            // SEEMS AS IF EACH CLIENT CHACHA KEY IS NULL 
+
+            x.GetPacketHelper().SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Gossip, null);
+            //x.Client.Packer.SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Gossip, null); // this one works for broadcast - not sure why myencr
             //int bytesSent = x.PacketHelper.SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Broadcast, null);
             //x.GetPacketHelper().SendPacket(Payload, Type, Action, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Gossip, null);
         });

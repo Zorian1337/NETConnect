@@ -14,7 +14,8 @@ namespace NETConnect.Shared
     {
         public bool IsAuthenticated = false;
 
-        public EncryptionTypeFLAG KeysExcangedSuccessfully { get; set; }
+        // THIS WAS ERRORED BECAUSE OF MISSING TYPE REFERENCE, BUT I ASSUME IT WAS NEVER USED ANYWAY
+        //public EncryptionType KeysExcangedSuccessfully { get; set; }
 
 
         /// <summary>

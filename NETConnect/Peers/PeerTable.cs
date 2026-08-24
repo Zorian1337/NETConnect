@@ -19,6 +19,18 @@ namespace NETConnect.Peers
         [JsonIgnore]
         public BaseTCPClient Client { get; set; }
 
+        public BaseTCPClient GetClient(Peer Self)
+        {
+            if(Client is null)
+            {
+                var SelfPeer = Self;
+                Client = new BaseTCPClient(ref SelfPeer);
+            }
+
+            return Client;
+        }
+
+
         /// <summary>
         /// Used for server side to get a direct line
         /// I think in real communications this wont really be used but im unsure, p2p is alot to wrap my head around
@@ -26,13 +38,35 @@ namespace NETConnect.Peers
         [JsonIgnore]
         public PacketHelper PacketHelper { get; set; }
 
-        public bool IsLocal { get; set; }
+        [JsonIgnore]
+        public string AddressPort => $"{Address}:{Port}";
+
+        [JsonIgnore]
+        public bool IsConnected 
+        { 
+            get
+            {
+                PacketHelper helper = GetPacketHelper();
+                if (helper is null) return false;
+                else return true;
+            }
+        }
+
+        //public bool IsLocal { get; set; } - true or false based on public or private IP
         public string Address { get; set; }
         public int Port { get; set; }
 
-        public string AddressPort => $"{Address}:{Port}";
+        //[JsonIgnore] // ignored for now - makes it hard to visualize this in json 
+        // we still need to have this get updated at some point
+        public NetworkStats NetStats { get; set; } 
 
-        public NetworkStats NetStats { get; set; }
+        // needs to be updated via the client when they discover
+        // gossip to say who they know?, could do gossip but without a fanout (would reach further)
+        /// <summary>
+        ///  Logs the collection of all of our total peers (stores connected peers aswell) - Use .IsConnected property to check if its there too
+        /// </summary>
+        public List<PeerTable> DiscoveredPeers { get; set; } = new List<PeerTable>();
+
         public PacketHelper GetPacketHelper() {
             if (PacketHelper is null) return Client.Packer;
             else return PacketHelper;
@@ -47,8 +81,12 @@ namespace NETConnect.Peers
             this.PeerId = Self.PeerId;   
             this.Address = Address;
             this.Port = Port;
+
+            this.NetStats = new NetworkStats(PeerId);
         }
 
+        // I DONT SEEM TO USE THIS VERSION 
+        // PROBABLY WILL REMOVE IT SOON
         public PeerTable(Guid PeerId, string Address, int Port)
         {
             this.PeerId = PeerId;

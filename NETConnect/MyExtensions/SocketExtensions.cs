@@ -184,7 +184,7 @@ namespace NETConnect.MyExtensions
                         // IF EMPTY AND DIRECT, ITS MEANT FOR US
                         if (Header.Route == PacketRoute.Direct)
                         {
-                            Console.WriteLine("Peer received packet meant for them [no PeerId, and Direct]");
+                            Debug.WriteLine("Peer received packet meant for them [no PeerId, and Direct]");
 
                             ReceivedPacket<IPacketHeaderIdentifier> Received = new ReceivedPacket<IPacketHeaderIdentifier>(Packet, Header, true);
 

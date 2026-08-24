@@ -111,9 +111,12 @@ public class PacketEncrypted
             {
                 case PacketEncryption.RSA: encrypted.encryptedData = data.EncryptRSA(Key); break;
                 case PacketEncryption.ChaCha20Poly1305:
+                    Console.WriteLine("encrypting poly message");
                     encrypted.encryptedData = data.EncryptChaCha(Key, out ChaCha.ChaChaKeys Keys);
                     encrypted.Nonce = Keys.nonce;
                     encrypted.Tag = Keys.tag;
+
+                    Console.WriteLine($"poly message length -> {encrypted.encryptedData.Length}");
                     break;
             }
 
