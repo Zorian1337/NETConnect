@@ -142,7 +142,7 @@ namespace NETConnectGUI
         private void HandleServerDataReceived(ServerClientHandle client, PacketHeader header, ReadOnlySpan<byte> data)
         {
             // WE ONLY WANT TO SEE BROADCASTED MESSAGES
-            if (header.Route != PacketRoute.Broadcast) return;
+            //if (header.Route != PacketRoute.Broadcast) return;
 
             //MessageBox.Show($"TCPServer -> {client.PacketHelper.Self.PeerId} says -> {BitConverter.ToString(data.ToArray())}");
             rtbConsole.AppendText($"[TCPServer] received from {header.OriginPeerId} - [{header.Type.ToString()} {header.Action.ToString()}]\n{data.ToArray().ToUTF8String()}\n\n"); //{BitConverter.ToString(data.ToArray())}
@@ -151,7 +151,7 @@ namespace NETConnectGUI
 
         private void btnSend_Click(object sender, EventArgs e)
         {
-            Self.Broadcast(txtMessage.Text, PacketType.Data, PacketAction.NONE);
+            Self.Gossip(txtMessage.Text, PacketType.Data, PacketAction.NONE);
         }
     }
 }
