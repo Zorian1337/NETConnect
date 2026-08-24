@@ -75,10 +75,10 @@ public:
 				// Check client messages
 
 
-				std::this_thread::sleep_for(std::chrono::microseconds(100));
+				std::this_thread::sleep_for(std::chrono::microseconds(25));
 			}
 			Debugger::WriteLine("out of scope[main]");
-			});
+		});
 	}
 };
 

@@ -170,7 +170,7 @@ public:
             return {};
         }
 
-        Debugger::WriteLine("HEADER IS VALID");
+        //Debugger::WriteLine("HEADER IS VALID");
 
         // Create buffer for the data payload
         //std::vector<uint8_t> buffer(outHeader.ByteLength); - I want this as char for now

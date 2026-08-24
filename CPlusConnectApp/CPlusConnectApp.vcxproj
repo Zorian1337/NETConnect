@@ -131,6 +131,7 @@
   <ItemGroup>
     <ClInclude Include="include\ChaCha.h" />
     <ClInclude Include="include\CryptUtils.h" />
+    <ClInclude Include="include\HeartBeat.h" />
     <ClInclude Include="include\PacketAuthentication.h" />
     <ClInclude Include="include\PacketEncrypted.h" />
     <ClInclude Include="include\RSA.h" />
@@ -352,12 +353,11 @@
     <ClInclude Include="include\_PS4.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\HeartBeat.cpp" />
     <ClCompile Include="src\simple_base64.cpp" />
     <ClCompile Include="src\guid.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Multicast.cpp" />
-    <ClCompile Include="src\NBPeer.cpp" />
-    <ClCompile Include="src\Node.cpp" />
     <ClCompile Include="src\PacketHelper.cpp" />
     <ClCompile Include="src\TCPClient.cpp" />
     <ClCompile Include="src\TCPServer.cpp" />

@@ -714,6 +714,9 @@
     <ClInclude Include="include\PacketEncrypted.h">
       <Filter>Header Files\Network\Packet</Filter>
     </ClInclude>
+    <ClInclude Include="include\HeartBeat.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\simple_base64.cpp">
@@ -726,12 +729,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Multicast.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\NBPeer.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Node.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\PacketHelper.cpp">
@@ -747,6 +744,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\UTF8Helper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\HeartBeat.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

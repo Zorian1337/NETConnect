@@ -19,6 +19,8 @@ class Debugger {
 
 public:
 	static void WriteLine(const std::string Message) {
+		
+#ifdef _DEBUG
 		std::string Modified = "[DEBUG] " + Message + "\n"; // Add a prefix and newline for better visualization
 
 		#ifdef _PS4
@@ -28,7 +30,7 @@ public:
 		#ifdef _WIN32
 		printf(Modified.c_str());
 		#endif 
-
+#endif
 	}
 
 	static void WriteError(const std::string Message) {
