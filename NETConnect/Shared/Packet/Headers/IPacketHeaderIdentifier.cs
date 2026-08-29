@@ -118,4 +118,31 @@ public interface IPacketHeaderIdentifier
     /// <param name="header"></param>
     /// <returns></returns>
     public byte[] BuildFullHeader((ushort Magic, byte Version, byte HeaderLength, int PayloadLength, long SentAt) info, Span<byte> header); // implement per packet class/struct 
+
+    public byte[] ToPreheaderBinary()
+    {
+        byte[] preheader = new byte[PreheaderLength];
+        Span<byte> span = preheader.AsSpan();
+
+        int offset = 0;
+        int inc = 2;
+
+        BinaryPrimitives.WriteUInt16LittleEndian(span[offset..(offset+ inc)], Magic);
+        offset += inc;
+
+        span[offset++] = Version;
+        span[offset++] = HeaderLength;
+
+        inc = 4;
+        BinaryPrimitives.WriteInt32LittleEndian(span[offset..(offset + inc)], PayloadLength);
+        offset += inc;
+
+        inc = 8;
+        BinaryPrimitives.WriteInt64LittleEndian(span[offset..(offset + inc)], SentAt);
+        offset += inc;
+
+        Debug.Assert(offset == PreheaderLength, $"Wrote {offset} bytes but PreheaderLength is {PreheaderLength}");
+
+        return preheader;
+    }
 }
