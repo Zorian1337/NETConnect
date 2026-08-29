@@ -88,13 +88,20 @@ public class BaseTCPServer : BaseServerProperties
 
     public async Task StartServerAsync()
     {
-        //Console.WriteLine("started async");
+        Console.WriteLine("started async");
         if (SocketServer is not null) return;
 
         if(SocketServer is null)
         {
             // Creates instance of socket server if not existing
-            SocketServer = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            SocketServer = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+            
+            if (SocketServer.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                // Allows IPv4 and IPv6 to connect - supports multiplatform (DualMode doesnt)
+                SocketServer.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, 0);
+                Console.WriteLine("allows all network adapaters");
+            }
 
             // Wire up our base events
             //OnClientConnected += HandleClientConnected;
@@ -112,7 +119,7 @@ public class BaseTCPServer : BaseServerProperties
 
         SocketServer.Bind(new IPEndPoint(Address, Port));
         SocketServer.Listen();
-
+        Console.WriteLine("listening");
         State = ServerState.Running;
 
         // Grabbed this just to assign it directly to the server class
@@ -185,6 +192,12 @@ public class BaseTCPServer : BaseServerProperties
                     OnDataReceived += HandleDataReceived;
 
                     ServerToken = new CancellationTokenSource();
+                }
+
+                if (SocketServer.AddressFamily == AddressFamily.InterNetworkV6)
+                {
+                    // Allows IPv4 and IPv6 to connect - supports multiplatform (DualMode doesnt)
+                    SocketServer.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, 0);
                 }
 
                 // Verify Address and Port arent null 
