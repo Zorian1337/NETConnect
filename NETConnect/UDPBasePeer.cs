@@ -25,7 +25,7 @@ public class UDPBasePeer
     public void Init(ref Peer Self)
     {
         // CREATE NEW SOCKET FOR OUR CONNECTION
-        Connection = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        Connection = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp); // ADD SUPPORT FOR IPv6 SOON
         Connection.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true); // I ASSUME WE'LL NEED THIS
 
 
