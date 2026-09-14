@@ -5,6 +5,7 @@ using NETConnect.Shared.Packet.Headers;
 using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Net;
 using System.Net.Sockets;
 using System.Reflection.PortableExecutable;
 
@@ -50,7 +51,7 @@ namespace NETConnect.MyExtensions
         {
             Console.WriteLine("reading messages");
             var Pool = ArrayPoolBuffer.GetNewOrExistingArrayPool(Connection);
-            await Pool.ReceiveAsync();
+            //await Pool.ReceiveAsync();
         }
 
         //public class PacketResult
@@ -61,6 +62,17 @@ namespace NETConnect.MyExtensions
         //    public bool IsSuccess { get; set; }
         //    public string? ErrorMessage { get; set; }
         //}
+
+        public static ArrayPoolBuffer GetOrCreateArrayPool(this Socket Connection) => ArrayPoolBuffer.GetNewOrExistingArrayPool(Connection); 
+
+        public static async Task<ReceivedPacket<IPacketHeaderIdentifier>?> ReceiveUDPPacketFromAsync(this Socket Connection, EndPoint receiveFrom, int Timeout = 0)
+        {
+            ArrayPoolBuffer pool = GetOrCreateArrayPool(Connection);
+
+            //pool.
+            return null;
+
+        }
 
         public static async Task<ReceivedPacket<IPacketHeaderIdentifier>?> ReceiveFullPacketAsync(this Socket Connection, PacketHelper Helper, int Timeout = 0)
         {
@@ -74,6 +86,7 @@ namespace NETConnect.MyExtensions
             Memory<byte> memoryBuffer = preheader.AsMemory();
             try
             {
+                // RECEIVES DATA UNTIL IT IS BIG ENOUGH TO BE A PREHEADER 
                 while (readBytes < IPacketHeaderIdentifier.PreheaderLength || (!cts.IsCancellationRequested && Timeout > 0 && readBytes < IPacketHeaderIdentifier.PreheaderLength))
                 {
                     int receivedBytes = 0;
