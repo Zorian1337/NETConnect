@@ -229,6 +229,15 @@ public class Multicast
         switch (Packet.Action)
         {
             case MulticastAction.Join:
+                // Version needs to be supported
+                //      -Add function to detect valid versions for the current version later 
+                //      -For now only accept the current version
+                if (Packet.Version != Self.Version)
+                {
+                    Console.WriteLine($"Version detected that isnt supported: {Self.Version} != {Packet.Version}");
+                    return; // Only accept current version
+                }
+
                 // ONCE A CLIENT JOINS THE MULTICAST ADD THEM TO THE DISCOVERED LIST
                 // USE THE MULTICAST TO FIND PEERS TO JOIN OUR MESH
 
@@ -355,7 +364,7 @@ public class Multicast
 
     public void SendMessage(byte[] Message, MulticastAction Action, IPEndPoint EPoint)
     {
-        MulticastPacket packet = new MulticastPacket(SenderId, Message, Action);
+        MulticastPacket packet = new MulticastPacket(Self.Version, SenderId, Message, Action);
         string JSON = System.Text.Json.JsonSerializer.Serialize(packet);
 
         byte[] Data = JSON.ToUTF8Byte();
@@ -369,7 +378,7 @@ public class Multicast
     public void SendMessage(byte[] Message, MulticastAction Action)
     {
         //Console.WriteLine($"sent from : {SenderId}");
-        MulticastPacket packet = new MulticastPacket(SenderId, Message, Action);
+        MulticastPacket packet = new MulticastPacket(Self.Version, SenderId, Message, Action);
         string JSON = System.Text.Json.JsonSerializer.Serialize(packet);
 
         //Console.WriteLine(JSON);
