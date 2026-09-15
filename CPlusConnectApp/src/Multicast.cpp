@@ -58,7 +58,7 @@ void Multicast::OnDataReceived(UDPClient Client, std::vector<uint8_t> data) {
 	//      -Add function to detect valid versions for the current version later 
 	//      -For now only accept the current version
 	if (Self->Version != packet.Version) {
-		printf("Version detected that isn't supported: %s != %s", Self->Version, packet.Version);
+		printf("Version detected that isn't supported: %d != %d\n", Self->Version, packet.Version);
 		return; // Only accept current version
 	}
 
