@@ -10,7 +10,7 @@
 //}
 
 int Multicast::SendPacket(const std::vector<uint8_t>& _data, MulticastAction _actionType) {
-	MulticastPacket packet(Self->PeerId, _data, _actionType);
+	MulticastPacket packet(Self->Version, Self->PeerId, _data, _actionType);
 	Debugger::WriteLine("sending multicast join packet");
 	int bytesSent = SendToAll(packet.ToJson());
 	return bytesSent;
