@@ -22,8 +22,7 @@ struct MulticastPacket {
 
     // Default constructor
     MulticastPacket() : Action(MulticastAction::Join) {
-        //memset(&SenderId, 0, sizeof(GUID)); apparently this is not needed 
-
+        //memset(&SenderId, 0, sizeof(GUID)); //apparently this is not needed 
     }
 
     // Parameterized constructor
@@ -75,7 +74,7 @@ struct MulticastPacket {
             ordered parsed = ordered::parse(Json);
 
             // Parse Version
-            int Version = parsed.at("Version").get<int>();
+            p->Version = parsed.at("Version").get<int>();
 
             // Parse our SenderId
             std::string guidStr = parsed.at("SenderId").get<std::string>();
