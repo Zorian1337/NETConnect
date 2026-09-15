@@ -3,8 +3,8 @@
 	<volume>
 		<volume_type>pkg_ps4_app</volume_type>
 		<volume_id>PS4VOLUME</volume_id>
-		<volume_ts>2026-03-12 03:51:43</volume_ts>
-		<package content_id="IV0000-BREW69693_00-p2pmulticast0000" passcode="00000000000000000000000000000000"
+		<volume_ts>2026-08-28 23:54:14</volume_ts>
+		<package content_id="IV0000-BREW00100_00-MYHOMEBREW000000" passcode="00000000000000000000000000000000"
 			storage_type="digital50" app_type="full" />
 		<chunk_info chunk_count="1" scenario_count="1">
 			<chunks>
