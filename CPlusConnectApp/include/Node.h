@@ -37,6 +37,7 @@ public:
 
 	ThreadPool& GetThreadPool() { return threadPool; }
 
+	int Version = 1;
 	xg::Guid PeerId = xg::newGuid(); // Needs to defined per platform in preprocessers (current: GUID_WINDOWS=1)
 	Multicast LAN;
 	TCPServer TServer;

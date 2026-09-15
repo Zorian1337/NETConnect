@@ -15,17 +15,20 @@ enum MulticastAction : uint8_t {
 
 
 struct MulticastPacket {
+    int Version;
     xg::Guid SenderId;
 	std::vector<uint8_t> Data;
 	MulticastAction Action;
 
     // Default constructor
     MulticastPacket() : Action(MulticastAction::Join) {
-        memset(&SenderId, 0, sizeof(GUID));
+        //memset(&SenderId, 0, sizeof(GUID)); apparently this is not needed 
+
     }
 
     // Parameterized constructor
-    MulticastPacket(const xg::Guid& _SenderId, const std::vector<uint8_t>& _data, MulticastAction _actionType) {
+    MulticastPacket(const int _Version, const xg::Guid& _SenderId, const std::vector<uint8_t>& _data, MulticastAction _actionType) {
+        Version = _Version;
         SenderId = _SenderId;
         Data = _data;
         Action = _actionType;
@@ -33,7 +36,6 @@ struct MulticastPacket {
 
     // Convert GUID to string
     std::string GuidToString() const {
-
         return SenderId.str();
     }
 
@@ -72,6 +74,9 @@ struct MulticastPacket {
         try {
             ordered parsed = ordered::parse(Json);
 
+            // Parse Version
+            int Version = parsed.at("Version").get<int>();
+
             // Parse our SenderId
             std::string guidStr = parsed.at("SenderId").get<std::string>();
             p->SenderId = xg::Guid(guidStr);
@@ -88,40 +93,10 @@ struct MulticastPacket {
         catch (const std::exception& e) { return nullptr; }
     }
 
-    //static bool TryFromJson(const nlohmann::json& j, MulticastPacket& packet) {
-    //
-    //    try 
-    //    {
-    //        packet = MulticastPacket::FromJson(j);
-    //        return true;
-    //    }
-    //    catch (const std::exception& e) { printf("TryFromJson Error: %s\n", e.what());  return false; }
-    //}
-
-    //static MulticastPacket FromJson(const nlohmann::json& j) {
-    //    MulticastPacket p;
-
-    //    try {
-    //        // Get string from JSON, then convert to GUID
-    //        std::string guidStr = j.at("SenderId").get<std::string>();
-    //        p.SenderId = xg::Guid(guidStr);
-
-    //        std::string base64Data = j.at("Data").get<std::string>();
-    //        std::string decodedStr = base64_decode(base64Data);
-
-    //        
-    //        std::vector<uint8_t> decodedData(decodedStr.begin(), decodedStr.end());
-    //        p.Data = std::move(decodedData);
-    //        p.Action = static_cast<MulticastAction>(j.at("Action").get<int>());
-    //    }
-    //    catch (const std::exception& e) { printf("TryFromJson Error: %s\n", e.what());   }
-
-    //    return p;
-    //}
-
     std::string ToJson() {
 
         return nlohmann::ordered_json{
+            {"Version",Version},
             {"SenderId", GuidToString()},  // Convert GUID to string
             {"Data", base64_encode(UTF8Helper::ToString(Data))},  // Convert data to base64 as its sent that way on our c# application (when byte[] gets serialized)
             {"Action", static_cast<int>(Action)}
