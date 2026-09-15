@@ -54,6 +54,14 @@ void Multicast::OnDataReceived(UDPClient Client, std::vector<uint8_t> data) {
 	// Ignore packets from self
 	if (Self->PeerId == packet.SenderId) return;
 
+	// Version needs to be supported
+	//      -Add function to detect valid versions for the current version later 
+	//      -For now only accept the current version
+	if (Self->Version != packet.Version) {
+		printf("Version detected that isn't supported: %s != %s", Self->Version, packet.Version);
+		return; // Only accept current version
+	}
+
 	// for now we are reading this here as we have no other use for the multicast
 	printf("%s received ->\n	%s\n", Self->PeerId.str().c_str(), UTF8Helper::ToString(data).c_str());
 

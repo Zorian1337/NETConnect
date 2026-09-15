@@ -225,19 +225,19 @@ public class Multicast
         // WE DONT WANT ANY MESSAGES FROM OURSELF
         if (Packet.SenderId == Self.PeerId) return;
 
+        // Version needs to be supported
+        //      -Add function to detect valid versions for the current version later 
+        //      -For now only accept the current version
+        if (Packet.Version != Self.Version)
+        {
+            Console.WriteLine($"Version detected that isnt supported: {Self.Version} != {Packet.Version}");
+            return; // Only accept current version
+        }
+
         string UTF8 = String.Empty;
         switch (Packet.Action)
         {
             case MulticastAction.Join:
-                // Version needs to be supported
-                //      -Add function to detect valid versions for the current version later 
-                //      -For now only accept the current version
-                if (Packet.Version != Self.Version)
-                {
-                    Console.WriteLine($"Version detected that isnt supported: {Self.Version} != {Packet.Version}");
-                    return; // Only accept current version
-                }
-
                 // ONCE A CLIENT JOINS THE MULTICAST ADD THEM TO THE DISCOVERED LIST
                 // USE THE MULTICAST TO FIND PEERS TO JOIN OUR MESH
 
