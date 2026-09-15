@@ -78,7 +78,7 @@ public class Multicast
 
         // CREATE SHARED ArrayPool to lower memory allocation
         // THIS IS STILL THE WRONG IMPLEMENTATION OF ArrayPool
-        // WE SHOULDNT BE DISPOSING AFTER EVERY USE (PRETTY SURE?)
+        // WE SHOULDNT BE DISPOSING AFTER EVERY USE (PRETTY SURE?) 
         byte[] buffer = ArrayPool<byte>.Shared.Rent(65536);
         var memoryBuffer = buffer.AsMemory();
 
@@ -361,6 +361,9 @@ public class Multicast
         byte[] Data = JSON.ToUTF8Byte();
         Client.Send(Data, Data.Length, EPoint);
     }
+
+    //public async Task SendMessageAsync()
+
     public void SendUTF8Message(string UTF8Message, MulticastAction Action, IPEndPoint EPoint) => SendMessage(UTF8Message.ToUTF8Byte(), Action, EPoint);
 
     public void SendMessage(byte[] Message, MulticastAction Action)

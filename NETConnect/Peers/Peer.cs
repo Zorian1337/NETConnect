@@ -37,6 +37,8 @@ public class Peer
     /// </summary>
     public ECDsa PrivateSigningKey { get; set; }
     public BaseTCPServer TCPServer { get; set; }
+
+
     public List<PeerTable> ConnectedPeers { get; set; } = new List<PeerTable>();
     public Multicast Multicast { get; set; }
 
@@ -65,6 +67,7 @@ public class Peer
 
     public Peer(IPAddress Address, int Port)
     {
+        Console.WriteLine("peer start");
         // Init our server/client
         var Self = this;
 
@@ -72,7 +75,7 @@ public class Peer
         
 
         TCPServer = new BaseTCPServer(ref Self, Address, Port);
-
+        //Console.WriteLine(Address.ToString());
         // Start our server, as having multicast up and our TCPServer is the most important (client is used to connect to other Peer Servers) - might need to change some plans around later 
         //TCPServer.StartServer();
         Task.Run(() => _ = TCPServer.StartServerAsync());

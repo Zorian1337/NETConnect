@@ -12,6 +12,7 @@ namespace NETConnect.Network;
 public class NetworkUtils
 {
 
+
     public static IPAddress GetLocalLanIp()
     {
         // Try interfaces with a default gateway (usually connected to LAN)
