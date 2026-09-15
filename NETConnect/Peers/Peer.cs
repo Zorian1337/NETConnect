@@ -30,6 +30,7 @@ public enum PeerState
 
 public class Peer
 {
+    public int Version = 2;
     public Guid PeerId { get; set; } = Guid.NewGuid();
     
     /// <summary>
