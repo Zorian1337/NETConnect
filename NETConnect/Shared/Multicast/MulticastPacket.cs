@@ -13,14 +13,16 @@ public enum MulticastAction
 
 public class MulticastPacket
 {
+    public int Version { get; set; }
     public Guid SenderId { get; set; } 
     public byte[] Data { get; set; }
 
     public MulticastAction Action { get; set; }
 
 
-    public MulticastPacket(Guid SenderId, byte[] data, MulticastAction action)
+    public MulticastPacket(int Version, Guid SenderId, byte[] data, MulticastAction action)
     {
+        this.Version = Version;
         this.SenderId = SenderId;
         this.Data = data;
         this.Action = action;
