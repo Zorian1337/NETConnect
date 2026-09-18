@@ -59,6 +59,25 @@ public:
 						Debugger::WriteLine("Started tcp-server");
 					}
 				}
+				else if(Peer->LAN.IsServerRunning && Peer->TServer.IsServerRunning){
+					// advertise our server here to the multicast
+
+					// Get the IP as a string
+					char ipBuffer[INET_ADDRSTRLEN] = { 0 };
+					inet_ntop(AF_INET, &Peer->TServer.serverAddr.sin_addr, ipBuffer, INET_ADDRSTRLEN);
+					std::string ip = ipBuffer;
+
+					// Get the port as an int
+					int port = ntohs(Peer->TServer.serverAddr.sin_port);
+
+					std::string serverAddress = ip + ":" + std::to_string(port);
+					MulticastPacket mPacket(Peer->Version, Peer->PeerId, UTF8Helper::ToVector(serverAddress), MulticastAction::Join);
+
+					std::string json = mPacket.ToJson();
+
+					Peer->LAN.SendPacket(UTF8Helper::ToVector(json),MulticastAction::Join);
+				}
+				
 
 				// Check multicast messages
 				Peer->LAN.CheckForPackets();
