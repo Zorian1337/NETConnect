@@ -363,3 +363,7 @@ MigrationBackup/
 FodyWeavers.xsd
 /PS4ConnectApp/lib/libcryptopp_ps4.a
 /CPlusConnectApp/lib/cryptlib.lib
+
+#Payload testing - just main.c edits
+PS5Connect/src/testing_not_netconnect/
+
