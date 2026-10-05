@@ -1,5 +1,11 @@
 ﻿
 using NETConnect.Encryption.Crypt;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Encodings;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,6 +17,10 @@ using System.Text;
 using System.Threading.Tasks;
 using static NETConnect.Encryption.Crypt.RSACrypt;
 namespace NETConnect.MyExtensions.Encryption;
+
+// NOTE FOR THE FUTURE:
+// 10/5/26 originally planned to use BouncyCastle for RSA, but ended up decided to just phase out RSA for X25519 to pair with ChaCha20Poly1305.
+// My implementation of RSA resulted in issues on wine, due to compatability, it would be easier just to switch to another much better and faster encryption method
 
 public static class RSAExtensions
 {
@@ -32,7 +42,6 @@ public static class RSAExtensions
     {
         try
         {
-
             using RSA rsa = CreatePKCS8(PublicKey, false);
             rsa.ImportSubjectPublicKeyInfo(PublicKey, out _);
 
@@ -40,8 +49,10 @@ public static class RSAExtensions
 
             return rsa.Encrypt(Data, Padding);
         }
+        catch (CryptographicException CEx) { }
+
         catch (Exception Ex) { Console.WriteLine(Ex.ToString()); Debug.WriteLine(Ex.ToString()); }
-        
+
         return Array.Empty<byte>();
     }
 

@@ -113,13 +113,14 @@ public class PacketHelper
             //Self.TCPServer.InvokeDebugMessage($"ChaChaKey: {EncryptionKeys.ChaChaKey.Length}");
             //if (EncryptionKeys.ChaChaKey is null) Self.TCPServer.InvokeDebugMessage($"ChaChaKey: reported null - IsServer: {IsServer()}");
             //else Self.TCPServer.InvokeDebugMessage($"ChaChaKey: reported not null - IsServer: {IsServer()}");
+            Console.WriteLine($"[DEBUG] BEFORE ENCRYPTION");
             switch (Encryption)
             {
                 //case PacketEncryption.AES: break;
-                case PacketEncryption.RSA: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.RemoteRSAPubKey, PacketEncryption.RSA); break;
+                //case PacketEncryption.RSA: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.RemoteRSAPubKey, PacketEncryption.RSA); break; - opt out of RSA 
                 case PacketEncryption.ChaCha20Poly1305: Encrypted = PacketEncrypted.EncryptUT8Bytes(Payload, EncryptionKeys.ChaChaKey, PacketEncryption.ChaCha20Poly1305);  break; //Self.TCPServer.InvokeDebugMessage($"EncryptedData: {Encrypted?.Length} - ChaChaKey: {EncryptionKeys.ChaChaKey.Length}");
             }
-
+            Console.WriteLine($"[DEBUG] AFTER ENCRYPTION");
             if (Encrypted is null || Encrypted.Length == 0)
             {
                 // IF PACKET IS NOT ENCRYPTED THEN IT RUINS OUR PACKET

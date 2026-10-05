@@ -9,6 +9,10 @@ using NETConnect.Peers;
 using NETConnect.Shared;
 using NETConnect.Shared.Packet;
 using NETConnect.Shared.Packet.Headers;
+using Org.BouncyCastle.Bcpg;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -243,15 +247,16 @@ public class BaseTCPClient
         Guid ServerId = Guid.Empty;
 
         // GENERATE OUR ChaChaPoly Key
-        Packer.EncryptionKeys.ChaChaKey = CryptUtils.GenerateRandomData(32);
+        //Packer.EncryptionKeys.ChaChaKey = CryptUtils.GenerateRandomData(32); // no longer generate ChaChaKey from client, will be generated from X25519 key exchange
+        //Packer.EncryptionKeys.GenerateLocalRSAKeys(RSAKeySize.Minium); // no need for RSA any longer
 
         //[Client] Server: {Client.RemoteEndPoint} - Me: {NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.LocalEndPoint).Port} - ClientId: {Self.PeerId}
         Console.WriteLine($"[Client] Connected to {Client.RemoteEndPoint} - From: {NetworkUtils.GetLocalLanIp()}:{((IPEndPoint)Client.LocalEndPoint).Port} - ClientId: {Self.PeerId}");
 
-        // GENERATE OUR LOCAL RSA KEY HERE 
-        Packer.EncryptionKeys.GenerateLocalRSAKeys(RSAKeySize.Minium);
+        // GENERATE OUR KEYS HERE
+        Packer.EncryptionKeys.X25519Key = X25519KeyParams.Generate();
 
-        byte[] SYNPayload = PacketSYN.GetFirstSYNPayload(Environment.MachineName, Environment.OSVersion.VersionString, DeviceType.PC, Packer.EncryptionKeys.LocalRSAKeys.PublicKey); 
+        byte[] SYNPayload = PacketSYN.GetFirstSYNPayload(Environment.MachineName, Environment.OSVersion.VersionString, DeviceType.PC, Packer.EncryptionKeys.X25519Key.PublicKey.GetEncoded()); 
         int sent = Packer.SendPacket(SYNPayload, PacketType.Control, PacketAction.SYN, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Direct, null);
         Console.WriteLine($"[Client] Sent [SYN] - bytesSent: {sent}");
 
@@ -260,17 +265,19 @@ public class BaseTCPClient
         int Loop = 0;
         while (!Packer.IsAuthenticated)
         {
-            if (Loop >= 6)
-            {
-                // AUTHENTICATION TIMEDOUT
-                //Console.WriteLine("30s has passed and hasnt completed authentication");
-                result.ErrorMessage = "Failed to complete authentication under 30 seconds.";
-                return result;
-            }
+            // Only works if we have timeout on the receive
+            //if (Loop >= 6)
+            //{
+            //    // AUTHENTICATION TIMEDOUT
+            //    //Console.WriteLine("30s has passed and hasnt completed authentication");
+            //    result.ErrorMessage = "Failed to complete authentication under 30 seconds.";
+            //    return result;
+            //}
 
-            
-            if(ServerId != Guid.Empty) Console.WriteLine($"[CLIENT]:{Self.PeerId} -> waiting for authentication packets [{ServerId}]");
+            // Keep this enabled so we can figure out if "ReceiveFullPacketAsync" is not blocking waiting for a packet | or just returning null 
+            if (ServerId != Guid.Empty) Console.WriteLine($"[CLIENT]:{Self.PeerId} -> waiting for authentication packets [{ServerId}]");
             else Console.WriteLine($"[CLIENT]:{Self.PeerId} -> waiting for authentication packets with server");
+
             try
             {
                 using (var received = await Client.ReceiveFullPacketAsync(Packer))
@@ -293,9 +300,14 @@ public class BaseTCPClient
                         case PacketAction.SYNACK:
                             if (Packet.IsValidJSON(out Auth))
                             {
-                                if (Auth.EncryptionType != PacketEncryption.RSA) break;
+                                if (Auth.EncryptionType != PacketEncryption.X25519) break; // PacketEncryption needs changed later, so X25519 isnt out of place as its not an encryptionType just a method of key Exchange
 
-                                Packer.EncryptionKeys.SetRemoteRSAKey(Auth.KeyData);
+                                Packer.EncryptionKeys.X25519Key.SetRemoteKey(Auth.KeyData, out byte[] ChaChaKey);
+                                Packer.EncryptionKeys.ChaChaKey = ChaChaKey;
+
+                                // NOW THIS IS WHERE WE FLIP THE SCRIPT,
+                                // INSTEAD OF ENCRYPTING THE ChaChaKey WITH RSA, WE WILL ENCRYPT THE ChaChaKey WITH ChaCha20Poly1305
+                                // THIS WILL BE USED TO VERIFY WE HAVE THE CORRECT KEY ON BOTH SIDES, AND WILL BE USED TO VERIFY THE CONNECTION IS AUTHENTICATED
 
                                 Auth = new PacketAuthentication()
                                 {
@@ -303,9 +315,18 @@ public class BaseTCPClient
                                     KeyData = Packer.EncryptionKeys.ChaChaKey
                                 };
 
-                                Packer.SendPacket(Auth.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.ACK, PacketEncoding.NONE, PacketEncryption.RSA, PacketRoute.Direct, null);
+                                int bytesSent = Packer.SendPacket(Auth.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.ACK, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Direct, null);
+                                // ACK ORIGINALLY USED RSA TO ENCRYPT BUT NOW USING ChaCha20Poly1305 TO VERIFY THE ChaChaKey IS THE SAME ON BOTH SIDES
 
-                                Console.WriteLine($"[Client] sent encrypted ChaChaKey using RSA");
+                                Console.WriteLine($"DEBUG: {bytesSent}");
+                                if(bytesSent == -1)
+                                {
+                                    Console.WriteLine($"[Client] failed to send authenticated packet -> [ACK] to {Header.OriginPeerId}");
+                                    result.IsSuccess = false;
+                                    return result;
+                                }
+                                else Console.WriteLine($"[Client] sent {bytesSent} bytes, encrypted ChaChaKey");
+
                             }
                             break;
                         case PacketAction.ACK:
@@ -328,13 +349,12 @@ public class BaseTCPClient
                     }
                 }
             }
-            catch { }
-            //catch(Exception Ex)
-            //{
-            //    Console.WriteLine(Ex.Message); 
-            //    //result.ErrorMessage = Ex.Message;
-            //    //return result;
-            //}
+            catch (Exception Ex)
+            {
+                Console.WriteLine(Ex.Message);
+                //result.ErrorMessage = Ex.Message;
+                //return result;
+            }
 
 
             Loop++;
@@ -349,7 +369,6 @@ public class BaseTCPClient
 
     public async Task<bool> TryConnectAsyncV2(string IP, int Port)
     {
-        Console.WriteLine("c start");
         Console.WriteLine($"[CLIENT] {Self.PeerId} attempting to connect to {IP}:{Port}");
 
         if (SocketClient is null)

@@ -2,14 +2,57 @@
 using NETConnect.Encryption.Hash;
 using NETConnect.MyExtensions.Encryption;
 using NETConnect.Shared.Packet.Headers;
+using Org.BouncyCastle.Crypto.Agreement;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace NETConnect.Shared;
+
+
+public record X25519KeyParams(X25519PrivateKeyParameters PrivateKey, X25519PublicKeyParameters PublicKey)
+{
+    public static X25519KeyParams Generate()
+    {
+        var privateKey = new X25519PrivateKeyParameters(new SecureRandom());
+        var publicKey = privateKey.GeneratePublicKey();
+        return new X25519KeyParams(privateKey, publicKey);
+    }
+
+    public X25519PublicKeyParameters RemotePublicKey { get; set; }
+
+    public bool SetRemoteKey(byte[] PublicKey, out byte[] ChaChaKey)
+    {
+        ChaChaKey = Array.Empty<byte>();
+
+        if (PublicKey is null || PublicKey.Length != 32) { Debug.WriteLine("Invalid remote public key"); return false; }
+
+        try
+        {
+            RemotePublicKey = new X25519PublicKeyParameters(PublicKey, 0);
+
+            var agreement = new X25519Agreement();
+            agreement.Init(PrivateKey);
+            byte[] sharedSecret = new byte[32];
+            agreement.CalculateAgreement(RemotePublicKey, sharedSecret, 0);
+
+            ChaChaKey = sharedSecret;
+            return true;
+        }
+        catch(Exception Ex) { Debug.WriteLine($"Error setting remote public key: {Ex.Message}");  }
+
+        return false;
+    }
+
+
+}
 
 public class SecurityKey
 {
@@ -33,6 +76,7 @@ public class SecurityKey
     public int AESKeySize { get; set; }
     public byte[] AESKey { get; set; }
     public byte[] ChaChaKey { get; set; }
+    public X25519KeyParams X25519Key { get; set; }
 
 
     public SecurityKey(RSAKeySize RSAKeySize, RSACrypt.RSAExport LocalRSAKeys)

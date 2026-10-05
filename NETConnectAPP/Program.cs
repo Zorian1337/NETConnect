@@ -1,5 +1,4 @@
-﻿using NAudio.Wave;
-using NETConnect;
+﻿using NETConnect;
 using NETConnect.CustomConsole;
 using NETConnect.Encryption.Crypt;
 using NETConnect.MyExtensions;

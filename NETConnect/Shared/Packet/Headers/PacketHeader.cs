@@ -76,7 +76,9 @@ namespace NETConnect.Shared.Packet.Headers
     {
         NONE = 0,
         RSA = 1 << 0,
-        ChaCha20Poly1305  = 1 << 1 
+        ChaCha20Poly1305  = 1 << 1,
+        X25519 = 1 << 2,
+
     }
 
     

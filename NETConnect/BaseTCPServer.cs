@@ -639,6 +639,8 @@ public class BaseTCPServer : BaseServerProperties
 
         PacketAuthentication Auth;
         var Packer = ClientHandle.PacketHelper;
+        Packer.EncryptionKeys.X25519Key = X25519KeyParams.Generate();
+
         int Loop = 0;
         // SECURE OUT CONNECTION TO THE CLIENT
         while (!ClientHandle.PacketHelper.IsAuthenticated)
@@ -683,23 +685,25 @@ public class BaseTCPServer : BaseServerProperties
                         case PacketAction.SYN:
                             if (Packet.IsValidJSON(out PacketSYN SYN))
                             {
-                                if (SYN.Authentication.EncryptionType != PacketEncryption.RSA) break;
+                                if (SYN.Authentication.EncryptionType != PacketEncryption.X25519) break;
 
                                 // UPDATES OUR CLIENT PEER ID BASED ON PACKET 
                                 ClientHandle.Id = Header.OriginPeerId;
 
                                 // HANDLE CLIENT SYN WITH DEVICE DATA 
                                 //Console.WriteLine(SYN.ToIndentedJSON());
-                                Packer.EncryptionKeys.SetRemoteRSAKey(SYN.Authentication.KeyData);
+                                //Packer.EncryptionKeys.SetRemoteRSAKey(SYN.Authentication.KeyData);
+                                Packer.EncryptionKeys.X25519Key.SetRemoteKey(SYN.Authentication.KeyData, out byte[] ChaChaKey);
+                                Packer.EncryptionKeys.ChaChaKey = ChaChaKey;
 
                                 // SEND SERVER RSA KEY 
                                 if (Packer.EncryptionKeys is null) Console.WriteLine("EncryptionKeys is null");
-                                else if (Packer.EncryptionKeys.LocalRSAKeys is null) Console.WriteLine("RSAKeys are null");
+                                else if (Packer.EncryptionKeys.X25519Key is null) Console.WriteLine("X25519Keyss are null");
 
                                 Auth = new PacketAuthentication()
                                 {
-                                    EncryptionType = PacketEncryption.RSA,
-                                    KeyData = Packer.EncryptionKeys.LocalRSAKeys.PublicKey
+                                    EncryptionType = PacketEncryption.X25519,
+                                    KeyData = Packer.EncryptionKeys.X25519Key.PublicKey.GetEncoded()
                                 };
 
                                 int sentSYNAck = Packer.SendPacket(Auth.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.SYNACK, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Direct, null);
@@ -709,16 +713,18 @@ public class BaseTCPServer : BaseServerProperties
                         case PacketAction.ACK:
                             if (Packet.IsValidJSON(out PacketEncrypted encrypted))
                             {
-                                if (encrypted.EncryptionType != PacketEncryption.RSA) break;
+                                if (encrypted.EncryptionType != PacketEncryption.ChaCha20Poly1305) break;
 
-                                if (encrypted.TryDecryptInto(Packer.EncryptionKeys.LocalRSAKeys.PrivateKey, out Auth))
+                                // Attempts to decrypt what used to be RSA packet with ChaCha 
+                                if (encrypted.TryDecryptInto(Packer.EncryptionKeys.ChaChaKey, out Auth))
                                 {
                                     //Console.WriteLine($"[SERVER] => \n{Auth.ToIndentedJSON()}");
 
                                     if (Auth.EncryptionType != PacketEncryption.ChaCha20Poly1305) break;
 
-                                    Packer.EncryptionKeys.ChaChaKey = Auth.KeyData;
+                                    Packer.EncryptionKeys.ChaChaKey = Auth.KeyData; // this is redundant our ChaChaKey is already set.
 
+                                    // no point sending this to ACK we can probably skip it.
                                     Packer.SendPacket(Auth.ToJSON().ToUTF8Byte(), PacketType.Control, PacketAction.ACK, PacketEncoding.NONE, PacketEncryption.ChaCha20Poly1305, PacketRoute.Direct, null);
                                     Console.WriteLine("[Server] sent encrypted auth with chachakey");
                                 }

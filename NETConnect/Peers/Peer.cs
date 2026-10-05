@@ -140,8 +140,6 @@ public class Peer
     {
         var BroadcastTarget = ConnectedPeers.Where(p => p.PeerId != Header.OriginPeerId && p.PeerId != LastPeer);
 
-        TCPServer.InvokeDebugMessage($"📢 BroadcastForward: TTL={Header.TTL}, ConnectedPeers={ConnectedPeers.Count}");
-
         Parallel.ForEach(BroadcastTarget, x =>
         {
             //x.Client.Packer.SendPacket(Packet, Header.Type, Header.Action, PacketEncoding.NONE, PacketEncryption.NONE, PacketRoute.Gossip, null);

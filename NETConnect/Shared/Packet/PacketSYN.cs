@@ -32,14 +32,14 @@ public class PacketSYN
     public PacketEncryption SupportedEncryption { get; set; } = PacketEncryption.RSA | PacketEncryption.ChaCha20Poly1305;
 
 
-    public static byte[] GetFirstSYNPayload(string Name, string OS, DeviceType Device, byte[] RSAPubKey)
+    public static byte[] GetFirstSYNPayload(string Name, string OS, DeviceType Device, byte[] PubKey, PacketEncryption EncryptionType = PacketEncryption.X25519)
     {
         PacketSYN SYN = new PacketSYN();
 
         SYN.Authentication = new PacketAuthentication()
         {
-            KeyData = RSAPubKey,
-            EncryptionType = PacketEncryption.RSA
+            KeyData = PubKey,
+            EncryptionType = EncryptionType
         };
 
         SYN.Device = Device;
