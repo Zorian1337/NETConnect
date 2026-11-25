@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="NETConnect/NETConnect.csproj" />
+  <Project Path="NETConnectApp/NETConnectApp.csproj" Id="d6b8b641-0029-4880-9011-e01c5c0acfb8" />
+  <Project Path="NETConnectGUI/NETConnectGUI.csproj" Id="57bc4219-cae7-4268-8ab8-17210f4bac33" />
+</Solution>
