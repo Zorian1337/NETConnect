@@ -114,7 +114,7 @@ public class PeerIdentity
             using (var reader = new StreamReader(fs))
             using (var writer = new StreamWriter(fs))
             {
-                while (reader.EndOfStream)
+                while (!reader.EndOfStream)
                 {
                     string line = reader.ReadLine();
                     if (line.IsNullWhiteSpaceOrEmpty()) continue;
@@ -140,7 +140,7 @@ public class PeerIdentity
                 {
                     Console.WriteLine("count > 1");
                     // SEARCH FILE FOR EXISTING PROFILE
-                    while (reader.EndOfStream)
+                    while (!reader.EndOfStream)
                     {
                         string line = reader.ReadLine();
                         if (line.IsNullWhiteSpaceOrEmpty()) continue;
