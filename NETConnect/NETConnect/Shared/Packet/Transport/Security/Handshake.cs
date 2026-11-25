@@ -11,12 +11,14 @@ using System.Net.Sockets;
 using System.Reflection.Metadata.Ecma335;
 using System.Security.Cryptography;
 using System.Text;
-using static NETConnect.Shared.Peers.PeerMerge.PeerClientBase_Original;
 
-namespace NETConnect.Shared.Packet.Transport;
+
+namespace NETConnect.Shared.Packet.Transport.Security;
 
 public sealed class Handshake
 {
+    //public 
+
     public static async Task EstablishSecureServerChannelAsync(PeerServerBase Server, Socket Client, CancellationToken ct)
     {
         // CHECK THAT THE SERVER ISNT ALREADY AUTHENTICATED WITH THIS CLIENT 
@@ -116,7 +118,6 @@ public sealed class Handshake
 
         // CONNECTED TO SERVER, SO THATS THE SOCKET.
         Socket Server = Client.Tcp.GetSocket();
-
         SignedECDHKey signedKey = Identity.GenerateSignedEphemeralPublicKey(out ECDiffieHellman PublicKeyEPH);
 
         try
@@ -172,8 +173,7 @@ public sealed class Handshake
                         catch (Exception Ex) { Console.WriteLine(Ex.ToString()); }
 
 
-                        //ECDSA_P256.GenerateSignedEphemeralPublicKey
-                        //Client.Self.Identity.
+
                         break;
                     case PacketAction.ACK:
                         break;

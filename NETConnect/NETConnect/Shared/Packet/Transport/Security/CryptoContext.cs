@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace NETConnect.Shared.Packet.Transport;
+namespace NETConnect.Shared.Packet.Transport.Security;
 
-//
 public sealed class CryptoContext
 {
     public byte[] SendKey { get; set; }
